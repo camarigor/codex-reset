@@ -1,0 +1,12 @@
+# Dependencies and build output
+node_modules/
+dist/
+.output/
+.wxt/
+*.zip
+
+# Environment, logs and OS files
+.env
+.env.*
+*.log
+.DS_Store
