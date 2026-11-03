@@ -1,4 +1,4 @@
-import { ENDPOINTS, RECENT_RESETS_LIMIT } from "../config";
+import { ENDPOINTS, HISTORY_MAX_PAGES, RECENT_RESETS_LIMIT } from "../config";
 
 export type ResetType = "regular" | "banked";
 
@@ -33,6 +33,23 @@ export type ApiResult<T> =
   | { kind: "not-modified" }
   | { kind: "rate-limited"; retryAfterSeconds: number }
   | { kind: "error"; message: string };
+
+type HistoryFailure = Extract<
+  ApiResult<never>,
+  { kind: "error" | "rate-limited" }
+>;
+
+export interface ResetHistory {
+  resets: Reset[];
+  firstPage: Reset[];
+  complete: boolean;
+  failure: HistoryFailure | null;
+}
+
+interface ResetPage {
+  data: Reset[];
+  pagination: { has_more: boolean; next_cursor: string | null };
+}
 
 const DEFAULT_RETRY_AFTER_SECONDS = 60;
 
@@ -91,6 +108,19 @@ function isResetList(value: unknown): value is Reset[] {
   return Array.isArray(value) && value.every(isReset);
 }
 
+function isResetPage(value: unknown): value is ResetPage {
+  return (
+    isRecord(value) &&
+    isResetList(value.data) &&
+    isRecord(value.pagination) &&
+    typeof value.pagination.has_more === "boolean" &&
+    (value.pagination.next_cursor === null
+      ? !value.pagination.has_more
+      : typeof value.pagination.next_cursor === "string" &&
+        value.pagination.next_cursor.length > 0)
+  );
+}
+
 function retryAfterSeconds(header: string | null): number {
   if (header === null) return DEFAULT_RETRY_AFTER_SECONDS;
   if (/^\d+$/.test(header)) {
@@ -124,6 +154,7 @@ async function requestData<T>(
   etag: string | null,
   validate: (value: unknown) => value is T,
   fetchFn: typeof fetch,
+  selectData: (body: Record<string, unknown>) => unknown = (body) => body.data,
 ): Promise<ApiResult<T>> {
   try {
     const headers: Record<string, string> = { accept: "application/json" };
@@ -156,10 +187,14 @@ async function requestData<T>(
     } catch {
       return { kind: "error", message: "Invalid API response." };
     }
-    if (!isRecord(body) || !validate(body.data)) {
+    if (!isRecord(body)) {
       return { kind: "error", message: "Invalid API response." };
     }
-    return { kind: "ok", data: body.data, etag: response.headers.get("ETag") };
+    const data = selectData(body);
+    if (!validate(data)) {
+      return { kind: "error", message: "Invalid API response." };
+    }
+    return { kind: "ok", data, etag: response.headers.get("ETag") };
   } catch (error) {
     return {
       kind: "error",
@@ -202,4 +237,67 @@ export function fetchRecentResets(
     isResetList,
     fetchFn,
   );
+}
+
+/** Reads one bounded burst, retaining validated pages if a later request fails. */
+export async function fetchResetHistory(
+  maxPages: number = HISTORY_MAX_PAGES,
+  fetchFn: typeof fetch = fetch,
+): Promise<ApiResult<ResetHistory>> {
+  const pageLimit = Number.isFinite(maxPages)
+    ? Math.min(HISTORY_MAX_PAGES, Math.max(1, Math.trunc(maxPages)))
+    : HISTORY_MAX_PAGES;
+  const history: ResetHistory = {
+    resets: [],
+    firstPage: [],
+    complete: false,
+    failure: null,
+  };
+  const cursors = new Set<string>();
+  let cursor: string | null = null;
+
+  for (let page = 0; page < pageLimit; page++) {
+    const url = new URL(ENDPOINTS.resets);
+    url.searchParams.set("limit", "100");
+    if (cursor !== null) url.searchParams.set("cursor", cursor);
+    const result = await requestData(
+      url.href,
+      null,
+      isResetPage,
+      fetchFn,
+      (body) => body,
+    );
+    if (result.kind !== "ok") {
+      if (page === 0) return result;
+      history.failure =
+        result.kind === "not-modified"
+          ? { kind: "error", message: "Unexpected unchanged history page." }
+          : result;
+      return { kind: "ok", data: history, etag: null };
+    }
+
+    if (page === 0) history.firstPage = result.data.data;
+    history.resets.push(...result.data.data);
+    const { has_more, next_cursor } = result.data.pagination;
+    if (!has_more) {
+      history.complete = true;
+      return { kind: "ok", data: history, etag: null };
+    }
+    // Validation guarantees a nonempty cursor whenever another page exists.
+    if (next_cursor === null || cursors.has(next_cursor)) {
+      history.failure = {
+        kind: "error",
+        message: "Reset history cursor repeated.",
+      };
+      return { kind: "ok", data: history, etag: null };
+    }
+    cursors.add(next_cursor);
+    cursor = next_cursor;
+  }
+
+  history.failure = {
+    kind: "error",
+    message: "Reset history reached the page limit.",
+  };
+  return { kind: "ok", data: history, etag: null };
 }

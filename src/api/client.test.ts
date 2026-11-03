@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { fetchRecentResets, fetchStatus } from "./client";
+import { HISTORY_MAX_PAGES } from "../config";
+import { fetchRecentResets, fetchResetHistory, fetchStatus } from "./client";
 
 const latestReset = {
   id: "2117035794678546764",
@@ -368,5 +369,263 @@ describe("public API client", () => {
     await fetchStatus(null, fakeResponse(statusSample));
     await fetchRecentResets(5, fakeResponse(recentSample));
     expect(timeout.mock.calls).toEqual([[15000], [15000]]);
+  });
+});
+
+describe("reset history pagination", () => {
+  function page(data: unknown[], cursor: string | null = null) {
+    return {
+      data,
+      pagination: { has_more: cursor !== null, next_cursor: cursor },
+    };
+  }
+
+  it.each([{ data: [] }, { data: [latestReset, observedReset] }])(
+    "reads a single complete page: %j",
+    async ({ data }) => {
+      const fetchFn = fakeResponse(page(data));
+      expect(await fetchResetHistory(undefined, fetchFn)).toEqual({
+        kind: "ok",
+        etag: null,
+        data: { resets: data, firstPage: data, complete: true, failure: null },
+      });
+      expect(fetchFn).toHaveBeenCalledTimes(1);
+      expect(fetchFn.mock.calls[0]?.[0]).toBe(
+        "https://codex-resets.com/api/v1/resets?limit=100",
+      );
+      const options = fetchFn.mock.calls[0]?.[1];
+      expect(options?.cache).toBe("no-store");
+      expect(new Headers(options?.headers).has("If-None-Match")).toBe(false);
+    },
+  );
+
+  it("follows several pages past 100 resets and preserves the first page", async () => {
+    const resets = Array.from({ length: 201 }, (_, index) => ({
+      ...latestReset,
+      id: String(index),
+    }));
+    const fetchFn = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        Response.json(page(resets.slice(0, 100), "opaque_cursor-1")),
+      )
+      .mockResolvedValueOnce(
+        Response.json(page(resets.slice(100, 200), "opaque_cursor-2")),
+      )
+      .mockResolvedValueOnce(Response.json(page(resets.slice(200))));
+    const timeout = vi.spyOn(AbortSignal, "timeout");
+    expect(await fetchResetHistory(undefined, fetchFn)).toEqual({
+      kind: "ok",
+      etag: null,
+      data: {
+        resets,
+        firstPage: resets.slice(0, 100),
+        complete: true,
+        failure: null,
+      },
+    });
+    expect(fetchFn.mock.calls.map(([url]) => String(url))).toEqual([
+      "https://codex-resets.com/api/v1/resets?limit=100",
+      "https://codex-resets.com/api/v1/resets?limit=100&cursor=opaque_cursor-1",
+      "https://codex-resets.com/api/v1/resets?limit=100&cursor=opaque_cursor-2",
+    ]);
+    expect(timeout.mock.calls).toEqual([[15000], [15000], [15000]]);
+    expect(
+      fetchFn.mock.calls.every(
+        ([, options]) => options?.signal instanceof AbortSignal,
+      ),
+    ).toBe(true);
+  });
+
+  it("treats cursors as opaque query values", async () => {
+    const cursor = "opaque+/=&? value";
+    const fetchFn = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json(page([latestReset], cursor)))
+      .mockResolvedValueOnce(Response.json(page([observedReset])));
+    await fetchResetHistory(undefined, fetchFn);
+    const url = new URL(String(fetchFn.mock.calls[1]?.[0]));
+    expect(url.searchParams.get("cursor")).toBe(cursor);
+    expect([...url.searchParams.keys()]).toEqual(["limit", "cursor"]);
+  });
+
+  it.each([
+    new Response(null, { status: 503 }),
+    new Response("invalid JSON"),
+    Response.json(page([{ ...observedReset, announced_at: "invalid" }])),
+    Response.json({
+      data: [observedReset],
+      pagination: { has_more: true, next_cursor: null },
+    }),
+    new Response(null, { status: 304 }),
+  ])("keeps valid pages when a later page fails: %#", async (response) => {
+    const fetchFn = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json(page([latestReset], "next-page")))
+      .mockResolvedValueOnce(response);
+    expect(await fetchResetHistory(undefined, fetchFn)).toMatchObject({
+      kind: "ok",
+      etag: null,
+      data: {
+        resets: [latestReset],
+        firstPage: [latestReset],
+        complete: false,
+        failure: { kind: "error" },
+      },
+    });
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    ["120", 120],
+    [null, 60],
+    ["Mon, 02 Nov 2026 12:02:00 GMT", 120],
+  ] as const)(
+    "preserves a later 429 Retry-After %j and stops immediately",
+    async (header, seconds) => {
+      vi.spyOn(Date, "now").mockReturnValue(
+        Date.parse("2026-11-02T12:00:00.000Z"),
+      );
+      const fetchFn = vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(Response.json(page([latestReset], "next-page")))
+        .mockResolvedValueOnce(
+          new Response(null, {
+            status: 429,
+            headers: header === null ? {} : { "Retry-After": header },
+          }),
+        );
+      expect(await fetchResetHistory(undefined, fetchFn)).toEqual({
+        kind: "ok",
+        etag: null,
+        data: {
+          resets: [latestReset],
+          firstPage: [latestReset],
+          complete: false,
+          failure: { kind: "rate-limited", retryAfterSeconds: seconds },
+        },
+      });
+      expect(fetchFn).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it.each([
+    new TypeError("Offline"),
+    new DOMException("Timed out", "TimeoutError"),
+  ])(
+    "keeps valid pages after a network error or timeout: %s",
+    async (error) => {
+      const fetchFn = vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(Response.json(page([latestReset], "next-page")))
+        .mockRejectedValueOnce(error);
+      expect(await fetchResetHistory(undefined, fetchFn)).toMatchObject({
+        kind: "ok",
+        data: {
+          resets: [latestReset],
+          complete: false,
+          failure: { kind: "error", message: error.message },
+        },
+      });
+      expect(fetchFn).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it.each([
+    {},
+    { data: [latestReset] },
+    { data: [null], pagination: { has_more: false, next_cursor: null } },
+    { data: [], pagination: { has_more: "yes", next_cursor: "next" } },
+    { data: [], pagination: { has_more: true, next_cursor: "" } },
+    { data: [], pagination: { has_more: true, next_cursor: null } },
+    { data: [], pagination: { has_more: false, next_cursor: 123 } },
+  ])("validates the first page and pagination: %j", async (body) => {
+    const fetchFn = fakeResponse(body);
+    expect(await fetchResetHistory(undefined, fetchFn)).toEqual({
+      kind: "error",
+      message: "Invalid API response.",
+    });
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
+
+  it("propagates a first-page rate limit without requesting another page", async () => {
+    const fetchFn = fakeResponse(null, {
+      status: 429,
+      headers: { "Retry-After": "90" },
+    });
+    expect(await fetchResetHistory(undefined, fetchFn)).toEqual({
+      kind: "rate-limited",
+      retryAfterSeconds: 90,
+    });
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    [2, 2],
+    [0, 1],
+    [-1, 1],
+    [1.8, 1],
+    [Infinity, HISTORY_MAX_PAGES],
+    [NaN, HISTORY_MAX_PAGES],
+    [100, HISTORY_MAX_PAGES],
+  ])("bounds maxPages %s to %s requests", async (maxPages, expected) => {
+    const fetchFn = vi
+      .fn<typeof fetch>()
+      .mockImplementation(async () =>
+        Response.json(page([], `cursor-${fetchFn.mock.calls.length}`)),
+      );
+    expect(await fetchResetHistory(maxPages, fetchFn)).toMatchObject({
+      kind: "ok",
+      data: {
+        complete: false,
+        failure: {
+          kind: "error",
+          message: "Reset history reached the page limit.",
+        },
+      },
+    });
+    expect(fetchFn).toHaveBeenCalledTimes(expected);
+  });
+
+  it("keeps all pages when stopping at the page limit", async () => {
+    const fetchFn = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json(page([latestReset], "next-1")))
+      .mockResolvedValueOnce(Response.json(page([observedReset], "next-2")));
+    expect(await fetchResetHistory(2, fetchFn)).toMatchObject({
+      kind: "ok",
+      data: {
+        resets: [latestReset, observedReset],
+        firstPage: [latestReset],
+        complete: false,
+      },
+    });
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+  });
+
+  it("marks the final allowed page complete when there is no next page", async () => {
+    const fetchFn = fakeResponse(page([latestReset]));
+    expect(await fetchResetHistory(1, fetchFn)).toMatchObject({
+      kind: "ok",
+      data: { complete: true, failure: null },
+    });
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["a", "a"],
+    ["a", "b", "a"],
+  ])("stops repeated cursor cycles: %j", async (...cursors: string[]) => {
+    const fetchFn = vi.fn<typeof fetch>();
+    for (const cursor of cursors)
+      fetchFn.mockResolvedValueOnce(Response.json(page([latestReset], cursor)));
+    expect(await fetchResetHistory(undefined, fetchFn)).toMatchObject({
+      kind: "ok",
+      data: {
+        complete: false,
+        failure: { kind: "error", message: "Reset history cursor repeated." },
+      },
+    });
+    expect(fetchFn).toHaveBeenCalledTimes(cursors.length);
   });
 });

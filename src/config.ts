@@ -14,6 +14,7 @@ export const STARTUP_CHECK_DELAY_MINUTES = 5;
 export const MISSED_ALERT_GRACE_MINUTES = 30;
 export const MISSED_ALERT_WINDOW_HOURS = 24;
 export const RECENT_RESETS_LIMIT = 5;
+export const HISTORY_MAX_PAGES = 20;
 
 export const NOTIFICATION_TAGS = {
   watch: "codex-reset-watch",
