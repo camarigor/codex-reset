@@ -19,6 +19,8 @@ export interface AlertState {
   } | null;
   failure: { at: string; reason: string; missedResetId?: string } | null;
   statusCache: { etag: string; data: StatusData } | null;
+  missedAlertNotifiedResetId: string | null;
+  checkRetryAfterUntil: number | null;
 }
 
 const ALERT_STATE_KEY = "alertState";
@@ -32,6 +34,8 @@ export const DEFAULT_STATE: AlertState = Object.freeze({
   lastCheck: null,
   failure: null,
   statusCache: null,
+  missedAlertNotifiedResetId: null,
+  checkRetryAfterUntil: null,
 });
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -73,6 +77,17 @@ export async function loadState(): Promise<AlertState> {
     statusCache: isPlainObject(value.statusCache)
       ? (value.statusCache as AlertState["statusCache"])
       : DEFAULT_STATE.statusCache,
+    missedAlertNotifiedResetId:
+      typeof value.missedAlertNotifiedResetId === "string" &&
+      value.missedAlertNotifiedResetId.length > 0
+        ? value.missedAlertNotifiedResetId
+        : DEFAULT_STATE.missedAlertNotifiedResetId,
+    checkRetryAfterUntil:
+      typeof value.checkRetryAfterUntil === "number" &&
+      Number.isFinite(value.checkRetryAfterUntil) &&
+      value.checkRetryAfterUntil > 0
+        ? value.checkRetryAfterUntil
+        : DEFAULT_STATE.checkRetryAfterUntil,
   };
 }
 

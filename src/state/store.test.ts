@@ -16,6 +16,8 @@ const defaults: AlertState = {
   lastCheck: null,
   failure: null,
   statusCache: null,
+  missedAlertNotifiedResetId: null,
+  checkRetryAfterUntil: null,
 };
 
 const enabledAt = "2026-11-01T20:00:00.000Z";
@@ -40,6 +42,77 @@ afterEach(() => {
 });
 
 describe("alert state store", () => {
+  it.each([null, "reset-1"])(
+    "loads a valid notified reset id: %j",
+    async (missedAlertNotifiedResetId) => {
+      await fakeBrowser.storage.local.set({
+        alertState: { mode: "on", missedAlertNotifiedResetId },
+      });
+      expect(await loadState()).toEqual({
+        ...defaults,
+        mode: "on",
+        missedAlertNotifiedResetId,
+      });
+    },
+  );
+
+  it.each(["", 42, false, [], {}])(
+    "defaults an invalid notified reset id: %j",
+    async (missedAlertNotifiedResetId) => {
+      await fakeBrowser.storage.local.set({
+        alertState: { mode: "on", missedAlertNotifiedResetId },
+      });
+      expect(await loadState()).toEqual({ ...defaults, mode: "on" });
+    },
+  );
+
+  it.each([null, 1, 0.5, Date.parse(receivedAt)])(
+    "loads a valid retry deadline: %j",
+    async (checkRetryAfterUntil) => {
+      await fakeBrowser.storage.local.set({
+        alertState: { mode: "on", checkRetryAfterUntil },
+      });
+      expect(await loadState()).toEqual({
+        ...defaults,
+        mode: "on",
+        checkRetryAfterUntil,
+      });
+    },
+  );
+
+  it.each([0, -1, NaN, Infinity, -Infinity, "123", false, [], {}])(
+    "defaults an invalid retry deadline: %j",
+    async (checkRetryAfterUntil) => {
+      await fakeBrowser.storage.local.set({
+        alertState: { mode: "on", checkRetryAfterUntil },
+      });
+      expect(await loadState()).toEqual({ ...defaults, mode: "on" });
+    },
+  );
+
+  it.each([false, true])(
+    "preserves check metadata and a concurrent push patch: push first=%s",
+    async (pushFirst) => {
+      const metadata = {
+        missedAlertNotifiedResetId: "reset-1",
+        checkRetryAfterUntil: Date.parse(receivedAt),
+      };
+      const push = {
+        lastAlert: {
+          at: receivedAt,
+          kind: "watch" as const,
+          title: "Watch",
+          url: resetUrl,
+        },
+        failure: null,
+      };
+      await updateState({ failure: { at: receivedAt, reason: "Missed" } });
+      const patches = pushFirst ? [push, metadata] : [metadata, push];
+      await Promise.all(patches.map((patch) => updateState(patch)));
+      expect(await loadState()).toEqual({ ...defaults, ...metadata, ...push });
+    },
+  );
+
   it("loads defaults when empty", async () => {
     expect(DEFAULT_STATE).toEqual(defaults);
     expect(await loadState()).toEqual(defaults);
