@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <!-- WXT copies this title into action.default_title, which Chrome localizes. main.ts sets the page title. -->
+    <title>__MSG_extName__</title>
+    <link rel="stylesheet" href="./style.css" />
+    <script type="module" src="./main.ts"></script>
+  </head>
+  <body>
+    <header class="masthead">
+      <h1 class="masthead-title" id="popup-title"></h1>
+      <button
+        class="button alerts-toggle"
+        id="alerts-toggle"
+        type="button"
+        aria-pressed="false"
+        aria-describedby="status-line"
+        disabled
+      >
+        <svg
+          class="bell"
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+          focusable="false"
+        >
+          <path d="M12 3v2" />
+          <path d="M6 17v-6a6 6 0 0 1 12 0v6l1.5 1.5h-15z" />
+          <path d="M10 20.5a2 2 0 0 0 4 0" />
+        </svg>
+        <span class="visually-hidden" id="alerts-toggle-label"></span>
+      </button>
+    </header>
+
+    <main>
+      <div class="alerts">
+        <p
+          class="status-line"
+          id="status-line"
+          role="status"
+          data-tone="off"
+        ></p>
+        <p class="toggle-hint" id="toggle-hint" aria-live="polite"></p>
+      </div>
+
+      <section class="reset-data" id="reset-data" aria-busy="true">
+        <div class="card data-status" id="data-status">
+          <p class="data-message" id="data-message" role="status"></p>
+          <button class="button retry" id="retry" type="button" hidden></button>
+        </div>
+
+        <div id="data" hidden>
+          <article
+            class="card card--dotted hero-card"
+            aria-labelledby="latest-label"
+          >
+            <h2 class="hero-label" id="latest-label"></h2>
+            <div id="latest-reset">
+              <time class="hero-figure" data-field="relative"></time>
+              <p class="hero-sub">
+                <span class="type-badge" data-field="type"></span>
+                <time data-field="exact"></time>
+              </p>
+              <p class="reset-text" data-field="text"></p>
+              <a
+                class="reset-link"
+                data-field="link"
+                target="_blank"
+                rel="noopener noreferrer"
+              ></a>
+              <p class="reset-note" data-field="observed"></p>
+            </div>
+            <p
+              class="hero-figure hero-figure--muted"
+              id="no-latest-reset"
+              hidden
+            ></p>
+          </article>
+
+          <dl class="stat-row">
+            <div class="stat-tile stat-tile--sun">
+              <dt id="stats-total-label"></dt>
+              <dd class="mono" id="stats-total"></dd>
+            </div>
+            <div class="stat-tile stat-tile--rose">
+              <dt id="stats-average-label"></dt>
+              <dd class="mono" id="stats-average"></dd>
+            </div>
+            <div class="stat-tile stat-tile--sky">
+              <dt id="stats-since-label"></dt>
+              <dd class="mono" id="stats-since"></dd>
+            </div>
+          </dl>
+
+          <section class="recent" aria-labelledby="recent-heading">
+            <h2 class="section-title" id="recent-heading"></h2>
+            <ol class="log-list" id="recent-list"></ol>
+            <p class="log-empty" id="recent-empty" hidden></p>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <footer class="credit">
+      <p><a id="credit-link" target="_blank" rel="noopener noreferrer"></a></p>
+      <p id="disclaimer"></p>
+    </footer>
+
+    <template id="reset-item">
+      <li class="log-item">
+        <div class="log-item-meta">
+          <time class="log-item-time" data-field="relative"></time>
+          <span class="type-badge" data-field="type"></span>
+          <time class="log-item-abs" data-field="exact"></time>
+        </div>
+        <p class="reset-text" data-field="text"></p>
+        <a
+          class="reset-link"
+          data-field="link"
+          target="_blank"
+          rel="noopener noreferrer"
+        ></a>
+        <p class="reset-note" data-field="observed"></p>
+      </li>
+    </template>
+  </body>
+</html>
