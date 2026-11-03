@@ -22,21 +22,36 @@ export async function runMissedAlertCheck(deps: {
   now: () => Date;
 }): Promise<"skipped" | "ok" | "missed" | "unavailable"> {
   let state = await deps.loadState();
-  if (state.mode !== "on") return "skipped";
-  const now = deps.now();
-  const at = now.toISOString();
   const metadata = await browser.storage.local.get([
     NOTIFIED_RESET_KEY,
     RETRY_AFTER_KEY,
   ]);
+  const notifiedResetId: unknown = metadata[NOTIFIED_RESET_KEY];
   const retryAt: unknown = metadata[RETRY_AFTER_KEY];
-  if (
-    typeof retryAt === "number" &&
-    Number.isFinite(retryAt) &&
-    now.getTime() < retryAt
-  )
-    return "unavailable";
-  await browser.storage.local.remove(RETRY_AFTER_KEY);
+  if (notifiedResetId !== undefined || retryAt !== undefined) {
+    // Use the queued current state so migration cannot overwrite a newer patch.
+    state = await deps.updateState((current) => ({
+      missedAlertNotifiedResetId:
+        current.missedAlertNotifiedResetId ??
+        (typeof notifiedResetId === "string" && notifiedResetId.length > 0
+          ? notifiedResetId
+          : null),
+      checkRetryAfterUntil:
+        current.checkRetryAfterUntil ??
+        (typeof retryAt === "number" && Number.isFinite(retryAt) && retryAt > 0
+          ? retryAt
+          : null),
+    }));
+    // Remove even invalid legacy values, only after the state write succeeds.
+    await browser.storage.local.remove([NOTIFIED_RESET_KEY, RETRY_AFTER_KEY]);
+  }
+  if (state.mode !== "on") return "skipped";
+  const now = deps.now();
+  const at = now.toISOString();
+  if (state.checkRetryAfterUntil !== null) {
+    if (now.getTime() < state.checkRetryAfterUntil) return "unavailable";
+    state = await deps.updateState({ checkRetryAfterUntil: null });
+  }
 
   async function unavailable(detail: string): Promise<"unavailable"> {
     await deps.updateState({
@@ -59,10 +74,15 @@ export async function runMissedAlertCheck(deps: {
       result.retryAfterSeconds,
       MAX_RETRY_AFTER_SECONDS,
     );
-    await browser.storage.local.set({
-      [RETRY_AFTER_KEY]: now.getTime() + retrySeconds * 1000,
+    await deps.updateState({
+      checkRetryAfterUntil: now.getTime() + retrySeconds * 1000,
+      lastCheck: {
+        at,
+        outcome: "unavailable",
+        detail: "The API is rate limited. The check will retry later.",
+      },
     });
-    return unavailable("The API is rate limited. The check will retry later.");
+    return "unavailable";
   }
   if (result.kind === "not-modified" && !state.statusCache) {
     return unavailable("The API returned 304 without cached status.");
@@ -87,7 +107,7 @@ export async function runMissedAlertCheck(deps: {
 
   if (
     state.failure?.missedResetId === missed.id ||
-    metadata[NOTIFIED_RESET_KEY] === missed.id
+    state.missedAlertNotifiedResetId === missed.id
   ) {
     await deps.updateState({
       lastCheck: {
@@ -130,10 +150,10 @@ export async function runMissedAlertCheck(deps: {
 
   await deps.updateState({
     endpoint,
+    missedAlertNotifiedResetId: missed.id,
     failure: { at, reason: failureReason, missedResetId: missed.id },
     lastCheck: { at, outcome: "missed", detail: failureReason },
   });
-  await browser.storage.local.set({ [NOTIFIED_RESET_KEY]: missed.id });
   try {
     await deps.showMissedAlert(missed);
   } catch (error) {

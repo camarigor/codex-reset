@@ -69,6 +69,154 @@ afterEach(() => {
 });
 
 describe("runMissedAlertCheck", () => {
+  it("migrates legacy metadata once and keeps retry and deduplication behavior", async () => {
+    const checkRetryAfterUntil = Date.parse(at) + 60_000;
+    const metadata = {
+      missedAlertNotifiedResetId: reset.id,
+      checkRetryAfterUntil,
+    };
+    await browser.storage.local.set({ ...metadata, unrelated: "keep" });
+    const remove = vi.spyOn(browser.storage.local, "remove");
+    const deps = dependencies();
+    expect(await runMissedAlertCheck(deps)).toBe("unavailable");
+    expect(await loadState()).toMatchObject(metadata);
+    expect(deps.fetchStatus).not.toHaveBeenCalled();
+    expect(await browser.storage.local.get(Object.keys(metadata))).toEqual({});
+    expect(await browser.storage.local.get("unrelated")).toEqual({
+      unrelated: "keep",
+    });
+
+    const restarted = dependencies();
+    restarted.now = () => new Date(checkRetryAfterUntil);
+    expect(await runMissedAlertCheck(restarted)).toBe("missed");
+    expect(restarted.fetchStatus).toHaveBeenCalledOnce();
+    expect(restarted.showMissedAlert).not.toHaveBeenCalled();
+    expect(restarted.resubscribe).not.toHaveBeenCalled();
+    expect((await loadState()).checkRetryAfterUntil).toBeNull();
+    expect(remove).toHaveBeenCalledExactlyOnceWith(Object.keys(metadata));
+  });
+
+  it.each<Record<string, unknown>>([
+    { missedAlertNotifiedResetId: reset.id },
+    { checkRetryAfterUntil: Date.parse(at) + 60_000 },
+  ])("migrates an individual legacy field: %j", async (metadata) => {
+    await updateState({ mode: "off" });
+    await browser.storage.local.set(metadata);
+    const deps = dependencies();
+    expect(await runMissedAlertCheck(deps)).toBe("skipped");
+    expect(await loadState()).toMatchObject(metadata);
+    expect(await browser.storage.local.get(Object.keys(metadata))).toEqual({});
+    expect(deps.fetchStatus).not.toHaveBeenCalled();
+  });
+
+  it.each<Record<string, unknown>>([
+    { missedAlertNotifiedResetId: "" },
+    { missedAlertNotifiedResetId: 42 },
+    { missedAlertNotifiedResetId: false },
+    { missedAlertNotifiedResetId: {} },
+    { missedAlertNotifiedResetId: [] },
+    { missedAlertNotifiedResetId: null },
+    { checkRetryAfterUntil: 0 },
+    { checkRetryAfterUntil: -1 },
+    { checkRetryAfterUntil: NaN },
+    { checkRetryAfterUntil: Infinity },
+    { checkRetryAfterUntil: -Infinity },
+    { checkRetryAfterUntil: "123" },
+    { checkRetryAfterUntil: false },
+    { checkRetryAfterUntil: {} },
+    { checkRetryAfterUntil: [] },
+    { checkRetryAfterUntil: null },
+  ])(
+    "removes invalid legacy metadata without importing it: %j",
+    async (metadata) => {
+      const before = await updateState({ mode: "off" });
+      await browser.storage.local.set(metadata);
+      expect(await runMissedAlertCheck(dependencies())).toBe("skipped");
+      expect(await loadState()).toEqual(before);
+      expect(await browser.storage.local.get(Object.keys(metadata))).toEqual(
+        {},
+      );
+    },
+  );
+
+  it("does not write or remove metadata when legacy keys are absent", async () => {
+    const before = await updateState({ mode: "off" });
+    const set = vi.spyOn(browser.storage.local, "set");
+    const remove = vi.spyOn(browser.storage.local, "remove");
+    expect(await runMissedAlertCheck(dependencies())).toBe("skipped");
+    expect(await loadState()).toEqual(before);
+    expect(set).not.toHaveBeenCalled();
+    expect(remove).not.toHaveBeenCalled();
+  });
+
+  it("fills only empty state fields from legacy metadata", async () => {
+    await updateState({
+      mode: "off",
+      missedAlertNotifiedResetId: "newer-reset",
+    });
+    await browser.storage.local.set({
+      missedAlertNotifiedResetId: reset.id,
+      checkRetryAfterUntil: Date.parse(at),
+    });
+    await runMissedAlertCheck(dependencies());
+    expect(await loadState()).toMatchObject({
+      missedAlertNotifiedResetId: "newer-reset",
+      checkRetryAfterUntil: Date.parse(at),
+    });
+  });
+
+  it("preserves newer state fields and a push queued before migration", async () => {
+    await browser.storage.local.set({
+      missedAlertNotifiedResetId: reset.id,
+      checkRetryAfterUntil: Date.parse(at),
+    });
+    const newer = {
+      mode: "off" as const,
+      missedAlertNotifiedResetId: "newer-reset",
+      checkRetryAfterUntil: Date.parse(at) + 120_000,
+      lastAlert: {
+        at,
+        kind: "watch" as const,
+        title: "Watch",
+        url: "https://example.com/reset-1",
+      },
+      failure: null,
+    };
+    const deps = dependencies();
+    deps.updateState = vi
+      .fn(updateState)
+      .mockImplementationOnce(async (patch) => {
+        await updateState(newer);
+        return updateState(patch);
+      });
+    expect(await runMissedAlertCheck(deps)).toBe("skipped");
+    expect(await loadState()).toMatchObject(newer);
+    expect(
+      await browser.storage.local.get([
+        "missedAlertNotifiedResetId",
+        "checkRetryAfterUntil",
+      ]),
+    ).toEqual({});
+    expect(deps.fetchStatus).not.toHaveBeenCalled();
+  });
+
+  it("keeps legacy metadata if migration cannot persist the state", async () => {
+    const metadata = { missedAlertNotifiedResetId: reset.id };
+    await browser.storage.local.set(metadata);
+    vi.spyOn(browser.storage.local, "set").mockRejectedValueOnce(
+      new Error("Storage unavailable"),
+    );
+    await expect(runMissedAlertCheck(dependencies())).rejects.toThrow(
+      "Storage unavailable",
+    );
+    expect(await browser.storage.local.get(Object.keys(metadata))).toEqual(
+      metadata,
+    );
+    expect((await loadState()).missedAlertNotifiedResetId).toBeNull();
+    expect(await runMissedAlertCheck(dependencies())).toBe("missed");
+    expect((await loadState()).missedAlertNotifiedResetId).toBe(reset.id);
+  });
+
   it("skips when alerts are off", async () => {
     await updateState({ mode: "off" });
     const deps = dependencies();
@@ -142,9 +290,10 @@ describe("runMissedAlertCheck", () => {
       retryAfterSeconds: 60,
     });
     await runMissedAlertCheck(deps);
-    expect(await browser.storage.local.get("checkRetryAfterUntil")).toEqual({
-      checkRetryAfterUntil: Date.parse(at) + 60_000,
-    });
+    expect((await loadState()).checkRetryAfterUntil).toBe(
+      Date.parse(at) + 60_000,
+    );
+    expect(await browser.storage.local.get("checkRetryAfterUntil")).toEqual({});
     expect((await loadState()).lastCheck?.detail).toBe(
       "The API is rate limited. The check will retry later.",
     );
@@ -155,10 +304,7 @@ describe("runMissedAlertCheck", () => {
     expect(deps.fetchStatus).toHaveBeenCalledOnce();
     deps.now = () => new Date(Date.parse(at) + 60_000);
     await runMissedAlertCheck(deps);
-    expect(
-      (await browser.storage.local.get("checkRetryAfterUntil"))
-        .checkRetryAfterUntil,
-    ).toBeUndefined();
+    expect((await loadState()).checkRetryAfterUntil).toBeNull();
   });
 
   it("caps Retry-After at 24 hours and resumes at the deadline", async () => {
@@ -179,9 +325,10 @@ describe("runMissedAlertCheck", () => {
   it("stores the notified reset id independently of check details and channel failure", async () => {
     const deps = dependencies();
     await runMissedAlertCheck(deps);
+    expect((await loadState()).missedAlertNotifiedResetId).toBe(reset.id);
     expect(
       await browser.storage.local.get("missedAlertNotifiedResetId"),
-    ).toEqual({ missedAlertNotifiedResetId: reset.id });
+    ).toEqual({});
     expect((await loadState()).lastCheck?.detail).toBe(
       "The reset push alert was not received.",
     );
