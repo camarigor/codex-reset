@@ -1,0 +1,298 @@
+/*
+ * Design tokens and shared base styles for the popup and the welcome page,
+ * in the codex-resets.com style. Colors come from the site's stylesheet;
+ * a token changed to meet WCAG AA says "AA:" and names the site value. The
+ * dark theme keeps the site's oklch() declarations and follows the system
+ * setting.
+ *
+ * Text and surface pairs checked for WCAG AA (4.5:1) in both themes,
+ * including the pixels under the dot pattern of .card--dotted:
+ *   --ink, --ink-2, --ink-3, --banked-copy and --link-hover on --paper,
+ *   --card and .card--dotted; each --on-* color on its fill (for example
+ *   --on-sun on --sun, --on-tone-ok on --tone-ok); --ink on --muted;
+ *   --paper on --ink.
+ * Check any other pair before using it. Text must not get opacity below 1
+ * (the site's 0.75 stat labels fail AA on the dark rose tile); disabled
+ * controls are exempt.
+ */
+
+@font-face {
+  font-family: "Baloo 2";
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+  src: url("/fonts/Baloo2-Bold.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "Baloo 2";
+  font-style: normal;
+  font-weight: 800;
+  font-display: block;
+  src: url("/fonts/Baloo2-ExtraBold.ttf") format("truetype");
+}
+
+:root {
+  color-scheme: light;
+
+  /* Surfaces */
+  --paper: #fff4dd;
+  --card: #fffdf7;
+  --muted: #f1e3c4; /* site: --cg-empty */
+
+  /* Text */
+  --ink: #26201a;
+  --ink-2: #5c5347;
+  --ink-3: #716556; /* AA: site #877b6b is 3.79:1 on --paper */
+  --banked-copy: #8b3d1f;
+  --link-hover: #be3500; /* AA: the site turns links --accent, 2.82:1 */
+
+  /* Fills, each with the text color that goes on it */
+  --accent: #ff5c2b;
+  --on-accent: var(--ink); /* AA: site var(--card) is 3.03:1 */
+  --sun: #ffd84d;
+  --on-sun: var(--ink);
+  --rose: #ffb9cc;
+  --on-rose: var(--ink);
+  --sky: #a5dcff;
+  --on-sky: var(--ink);
+  --mint: #b9e6a6;
+  --on-mint: var(--ink);
+  --peach: #ffb07a;
+  --on-peach: var(--ink); /* not in the site: text on the banked fill */
+  --watch-paper: #fff0bd;
+  --watch-copy: #675015;
+
+  /* Reset types, as the site's graph colors them */
+  --regular: var(--accent);
+  --on-regular: var(--on-accent);
+  --banked: var(--peach);
+  --on-banked: var(--on-peach);
+
+  /* Status line tones */
+  --tone-off: var(--muted);
+  --on-tone-off: var(--ink);
+  --tone-ok: var(--mint);
+  --on-tone-ok: var(--on-mint);
+  --tone-warning: var(--watch-paper);
+  --on-tone-warning: var(--watch-copy);
+  --tone-failing: var(--rose);
+  --on-tone-failing: var(--on-rose);
+
+  /* Decoration */
+  --dot-ink: #26201a1a;
+  --shadow-ink: var(--ink);
+
+  /* Typography */
+  --font-display: "Baloo 2", "Arial Rounded MT Bold", system-ui, sans-serif;
+  --font-body: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono:
+    ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+
+  /* Borders, hard offset shadows and radii */
+  --border: 2px solid var(--ink);
+  --border-thin: 1.5px solid var(--ink);
+  --shadow: 4px 4px 0 var(--shadow-ink);
+  --shadow-sm: 3px 3px 0 var(--shadow-ink);
+  --shadow-xs: 2px 2px 0 var(--shadow-ink);
+  --shadow-hero: 6px 6px 0 var(--shadow-ink);
+  --radius: 14px;
+  --radius-bubble: 16px;
+  --radius-highlight: 10px;
+  --radius-tooltip: 8px;
+  --radius-small: 6px;
+  --radius-pill: 999px;
+  --focus-ring: 3px solid var(--ink);
+  --focus-offset: 2px;
+
+  /* Spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --page-padding: 16px;
+
+  /* Motion */
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --press-duration: 0.1s;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+
+    --paper: oklch(18% 0.012 70);
+    --card: oklch(24% 0.014 70);
+    --muted: oklch(35% 0.022 75);
+
+    --ink: oklch(93% 0.025 80);
+    --ink-2: oklch(76% 0.025 75);
+    /* AA: site oklch(66% 0.024 72) is 4.30:1 under the card dots */
+    --ink-3: oklch(67.5% 0.024 72);
+    --banked-copy: var(--peach);
+    /* AA: the site turns links --accent, 4.12:1 under the card dots */
+    --link-hover: oklch(70% 0.195 38);
+
+    --accent: oklch(67% 0.2 38);
+    --on-accent: oklch(20% 0.03 38);
+    --sun: oklch(75% 0.135 82);
+    --on-sun: oklch(22% 0.04 82);
+    --rose: oklch(70% 0.12 355);
+    --on-rose: oklch(20% 0.03 350);
+    --sky: oklch(71% 0.095 232);
+    --on-sky: oklch(20% 0.03 235);
+    --mint: oklch(72% 0.11 145);
+    --on-mint: oklch(20% 0.04 145);
+    --peach: oklch(78% 0.12 48);
+    --on-peach: oklch(20% 0.03 48); /* not in the site */
+    --watch-paper: oklch(30% 0.055 72);
+    --watch-copy: oklch(86% 0.09 82);
+
+    --dot-ink: #f6e8cf14;
+    --shadow-ink: oklch(8% 0.005 70);
+  }
+}
+
+/* Base elements */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow-x: clip;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--accent);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+
+a:hover,
+a:focus-visible {
+  color: var(--link-hover);
+}
+
+:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+::selection {
+  background: var(--sun);
+  color: var(--on-sun);
+}
+
+/* Shared helpers */
+
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* A bordered card with a hard offset shadow. */
+.card {
+  background: var(--card);
+  border: var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+/* The dotted surface of the site's latest reset card. */
+.card--dotted {
+  background-image: radial-gradient(var(--dot-ink) 1.5px, transparent 1.5px);
+  background-size: 18px 18px;
+  box-shadow: var(--shadow-hero);
+}
+
+/*
+ * Pill button, as the site's notification control at full width: no hover
+ * change, a 3px press into its shadow, and the accent fill while
+ * aria-pressed is true. Narrow layouts (the site's 640px rules) restyle it
+ * per control.
+ */
+.button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 8px 14px;
+  border: var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--card);
+  color: var(--ink);
+  box-shadow: var(--shadow-sm);
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.2;
+  cursor: pointer;
+  transition:
+    transform var(--press-duration),
+    box-shadow var(--press-duration);
+}
+
+.button:active {
+  box-shadow: 0 0 0 var(--shadow-ink);
+  transform: translate(3px, 3px);
+}
+
+.button[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+/* The site disables the control only while a request runs. */
+.button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+/* Credit and disclaimer, shown wherever Codex Resets data appears. */
+.credit {
+  border-top: var(--border);
+  padding-top: 18px;
+  color: var(--ink-2);
+  font-size: 13px;
+}
+
+.credit p {
+  margin: 0 0 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button {
+    transition: none;
+  }
+}

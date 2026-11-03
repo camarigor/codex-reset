@@ -1,0 +1,250 @@
+{
+  "extName": {
+    "message": "Reset Alerts for Codex (Unofficial)",
+    "description": "Extension name in the manifest and the Chrome Web Store. Working name until the final name is chosen."
+  },
+  "extDescription": {
+    "message": "Get a system notification when OpenAI resets the Codex usage limits. Unofficial; alerts come from codex-resets.com.",
+    "description": "Extension description in the manifest. At most 132 characters."
+  },
+  "popupTitle": {
+    "message": "Reset Alerts for Codex",
+    "description": "Text title at the top of the popup. Always plain text, never a logo."
+  },
+  "alertsToggle": {
+    "message": "Alerts",
+    "description": "Label of the alerts toggle button. Its pressed state tells whether alerts are on."
+  },
+  "alertsTurnOn": {
+    "message": "Turn on alerts",
+    "description": "Action that turns alerts on: the welcome page button and the tooltip of the popup toggle while alerts are off."
+  },
+  "alertsTurnOff": {
+    "message": "Turn off alerts",
+    "description": "Tooltip of the popup toggle while alerts are on."
+  },
+  "alertsTurningOn": {
+    "message": "Turning on alerts…",
+    "description": "Shown while alerts are being turned on."
+  },
+  "alertsTurningOff": {
+    "message": "Turning off alerts…",
+    "description": "Shown while alerts are being turned off."
+  },
+  "alertsEnableFailed": {
+    "message": "Could not turn on alerts: $REASON$",
+    "description": "Shown when turning alerts on failed. Alerts stay off.",
+    "placeholders": {
+      "reason": {
+        "content": "$1",
+        "example": "the subscription request was refused"
+      }
+    }
+  },
+  "alertsDisableNotConfirmed": {
+    "message": "Alerts are off. The request asking Codex Resets to remove this browser failed: $REASON$",
+    "description": "Shown when alerts were turned off locally but the unsubscribe request to codex-resets.com failed.",
+    "placeholders": {
+      "reason": {
+        "content": "$1",
+        "example": "network error"
+      }
+    }
+  },
+  "statusOff": {
+    "message": "Alerts are off.",
+    "description": "Popup status line while alerts are off."
+  },
+  "statusWaiting": {
+    "message": "Turned on $WHEN$. Waiting for the first alert.",
+    "description": "Popup status line while alerts are on and no alert has arrived yet. WHEN is a relative time such as \"5 min ago\".",
+    "placeholders": {
+      "when": {
+        "content": "$1",
+        "example": "5 min ago"
+      }
+    }
+  },
+  "statusLastAlert": {
+    "message": "Last alert $WHEN$: $KIND$.",
+    "description": "Popup status line after an alert arrived. WHEN is a relative time; KIND is alertKindReset or alertKindWatch.",
+    "placeholders": {
+      "when": {
+        "content": "$1",
+        "example": "3 h ago"
+      },
+      "kind": {
+        "content": "$2",
+        "example": "reset confirmed"
+      }
+    }
+  },
+  "alertKindReset": {
+    "message": "reset confirmed",
+    "description": "Kind of the last alert: a confirmed reset. Inserted into statusLastAlert."
+  },
+  "alertKindWatch": {
+    "message": "possible reset",
+    "description": "Kind of the last alert: a forecast, not a confirmed reset. Inserted into statusLastAlert."
+  },
+  "statusCheckFailed": {
+    "message": "Missed-alert check failed $WHEN$: $DETAIL$.",
+    "description": "Popup status line when the last check for missed alerts could not reach codex-resets.com. DETAIL says why.",
+    "placeholders": {
+      "when": {
+        "content": "$1",
+        "example": "5 min ago"
+      },
+      "detail": {
+        "content": "$2",
+        "example": "rate limited"
+      }
+    }
+  },
+  "statusCheckFailedNoDetail": {
+    "message": "Missed-alert check failed $WHEN$.",
+    "description": "Same as statusCheckFailed when no reason was recorded.",
+    "placeholders": {
+      "when": {
+        "content": "$1",
+        "example": "5 min ago"
+      }
+    }
+  },
+  "statusMissedReset": {
+    "message": "Push did not deliver a reset (detected $WHEN$). This clears when the next alert arrives.",
+    "description": "Popup status line after the check found a reset that push did not deliver.",
+    "placeholders": {
+      "when": {
+        "content": "$1",
+        "example": "2 h ago"
+      }
+    }
+  },
+  "statusFailing": {
+    "message": "Push alerts are failing ($WHEN$): $REASON$. This clears when the next alert arrives.",
+    "description": "Popup status line for an alert failure that is not a missed reset, for example a failed registration.",
+    "placeholders": {
+      "when": {
+        "content": "$1",
+        "example": "3 h ago"
+      },
+      "reason": {
+        "content": "$2",
+        "example": "registering again failed"
+      }
+    }
+  },
+  "backgroundToggle": {
+    "message": "Keep alerts with Chrome closed",
+    "description": "Label of the control that asks for the optional background permission."
+  },
+  "backgroundOnNote": {
+    "message": "Chrome keeps running after its last window closes, until you quit it.",
+    "description": "Shown while the background permission is granted."
+  },
+  "backgroundOffNote": {
+    "message": "Without it, alerts can stop when the last Chrome window closes.",
+    "description": "Shown while the background permission is not granted."
+  },
+  "backgroundDenied": {
+    "message": "Chrome did not grant the background permission.",
+    "description": "Shown when the background permission request was denied."
+  },
+  "backgroundLinuxNote": {
+    "message": "On Linux, your system may also ask you to allow Chrome to run in the background.",
+    "description": "Note under the background control."
+  },
+  "latestResetLabel": {
+    "message": "Latest reset",
+    "description": "Label of the latest reset card in the popup."
+  },
+  "viewAnnouncement": {
+    "message": "View announcement",
+    "description": "Link to the public post that announced a reset."
+  },
+  "resetObserved": {
+    "message": "Observed, no announcement post",
+    "description": "Shown instead of the announcement link when a reset has no public post."
+  },
+  "noResetsYet": {
+    "message": "No resets tracked yet.",
+    "description": "Shown when Codex Resets has no reset to list."
+  },
+  "statsTotal": {
+    "message": "Resets",
+    "description": "Statistic label: total number of resets tracked by Codex Resets."
+  },
+  "statsAverageInterval": {
+    "message": "Avg. interval",
+    "description": "Statistic label: average number of days between resets."
+  },
+  "statsSinceLast": {
+    "message": "Since last reset",
+    "description": "Statistic label: days since the most recent reset."
+  },
+  "recentResetsHeading": {
+    "message": "Recent resets",
+    "description": "Heading of the list of the five most recent resets."
+  },
+  "creditLink": {
+    "message": "Data from Codex Resets",
+    "description": "Credit link to https://codex-resets.com, required wherever its data is shown. Keep the site name unchanged."
+  },
+  "disclaimer": {
+    "message": "Unofficial. Not affiliated with OpenAI or Codex Resets.",
+    "description": "Disclaimer shown with the credit link."
+  },
+  "loading": {
+    "message": "Loading…",
+    "description": "Shown while reset data loads."
+  },
+  "loadFailed": {
+    "message": "Could not load reset data from Codex Resets.",
+    "description": "Error state of the popup when the public API is down or unreachable. Alerts keep working."
+  },
+  "loadRateLimited": {
+    "message": "Codex Resets is limiting requests right now. Try again later.",
+    "description": "Error state of the popup when the public API answered with a rate limit."
+  },
+  "retry": {
+    "message": "Retry",
+    "description": "Button that loads reset data again after an error."
+  },
+  "welcomeTitle": {
+    "message": "Welcome to Reset Alerts for Codex",
+    "description": "Title and main heading of the welcome page opened on install."
+  },
+  "welcomeIntro": {
+    "message": "Get a system notification when OpenAI resets the Codex usage limits, without keeping a website open.",
+    "description": "First paragraph of the welcome page."
+  },
+  "welcomeSource": {
+    "message": "Alerts come from Codex Resets (codex-resets.com), a separate site that tracks Codex usage limit resets. This extension shows its alerts as notifications.",
+    "description": "Welcome page paragraph that names the source of the alerts."
+  },
+  "welcomePrivacyHeading": {
+    "message": "Before you turn on alerts",
+    "description": "Heading of the welcome page section that explains what is sent."
+  },
+  "welcomePrivacySubscription": {
+    "message": "Turning on alerts sends a push subscription to codex-resets.com: an address for this browser at its push service, with the keys that encrypt each alert. Turning off alerts asks Codex Resets to remove it.",
+    "description": "Consent text on the welcome page, shown before the Turn on alerts button."
+  },
+  "welcomePrivacyData": {
+    "message": "The popup also loads public reset data from codex-resets.com. There is no account, analytics or tracking.",
+    "description": "Welcome page paragraph about the other requests the extension makes."
+  },
+  "welcomeAlertsOff": {
+    "message": "Alerts stay off until you turn them on.",
+    "description": "Welcome page note next to the Turn on alerts button."
+  },
+  "welcomeEnabled": {
+    "message": "Alerts are on. You can close this tab.",
+    "description": "Shown on the welcome page after alerts were turned on."
+  },
+  "welcomePopupHint": {
+    "message": "Open this extension from the Extensions menu in the Chrome toolbar to see recent resets or change your alerts.",
+    "description": "Welcome page hint about the popup."
+  }
+}
