@@ -94,13 +94,15 @@ export default defineBackground({
       );
     });
 
-    browser.runtime.onInstalled.addListener(ensurePeriodicCheck);
-    browser.runtime.onStartup.addListener(async () => {
-      await ensurePeriodicCheck();
-      await browser.alarms.create("missed-alert-check-startup", {
-        delayInMinutes: STARTUP_CHECK_DELAY_MINUTES,
-      });
-    });
+    browser.runtime.onInstalled.addListener(() => enqueue(ensurePeriodicCheck));
+    browser.runtime.onStartup.addListener(() =>
+      enqueue(async () => {
+        await ensurePeriodicCheck();
+        await browser.alarms.create("missed-alert-check-startup", {
+          delayInMinutes: STARTUP_CHECK_DELAY_MINUTES,
+        });
+      }),
+    );
     browser.alarms.onAlarm.addListener((alarm) => {
       if (
         alarm.name !== "missed-alert-check" &&
@@ -108,38 +110,66 @@ export default defineBackground({
       )
         return;
       return enqueue(async () => {
-        let registeredAgain = false;
-        await runMissedAlertCheck({
-          fetchStatus,
-          loadState,
-          updateState,
-          now: () => new Date(),
-          resubscribe: async () => {
-            const result = await resubscribe(worker.registration.pushManager);
-            registeredAgain = result.ok;
-            return result;
-          },
-          showMissedAlert: async (reset) => {
-            const missed: MissedResetInfo = {
-              resetType: reset.reset_type,
-              text: reset.text,
-              url: sanitizeUrl(reset.source.url),
-            };
-            if (registeredAgain) {
-              await showMissedAlert(worker.registration, missed);
-              return;
-            }
-            const resetType =
-              missed.resetType === "regular" ? "Regular" : "Banked";
-            await worker.registration.showNotification("Push alert missed", {
-              body: `Codex Resets reported a ${resetType} reset that push did not deliver. Registering alerts again failed.\n\n${missed.text}`,
-              tag: NOTIFICATION_TAGS.missed,
-              data: { url: missed.url },
+        try {
+          if (
+            Date.now() - alarm.scheduledTime >
+            STARTUP_CHECK_DELAY_MINUTES * 60_000
+          ) {
+            await browser.alarms.create("missed-alert-check-startup", {
+              delayInMinutes: STARTUP_CHECK_DELAY_MINUTES,
             });
-          },
-        });
+            return;
+          }
+          let registeredAgain = false;
+          await runMissedAlertCheck({
+            fetchStatus,
+            loadState,
+            updateState,
+            now: () => new Date(),
+            resubscribe: async () => {
+              const result = await resubscribe(worker.registration.pushManager);
+              registeredAgain = result.ok;
+              return result;
+            },
+            showMissedAlert: async (reset) => {
+              const missed: MissedResetInfo = {
+                resetType: reset.reset_type,
+                text: reset.text,
+                url: sanitizeUrl(reset.source.url),
+              };
+              if (registeredAgain) {
+                await showMissedAlert(worker.registration, missed);
+                return;
+              }
+              const resetType =
+                missed.resetType === "regular" ? "Regular" : "Banked";
+              await worker.registration.showNotification("Push alert missed", {
+                body: `Codex Resets reported a ${resetType} reset that push did not deliver. Registering alerts again failed.\n\n${missed.text}`,
+                tag: NOTIFICATION_TAGS.missed,
+                data: { url: missed.url },
+              });
+            },
+          });
+        } catch (error) {
+          await recordCheckUnavailable(error);
+        }
       });
     });
+
+    async function recordCheckUnavailable(error: unknown): Promise<void> {
+      await updateState({
+        lastCheck: {
+          at: new Date().toISOString(),
+          outcome: "unavailable",
+          detail:
+            error instanceof Error && error.message
+              ? error.message
+              : "Unable to complete the missed-alert check.",
+        },
+      }).catch(() => {
+        // Storage may also be unavailable when recording the check failure.
+      });
+    }
 
     async function ensurePeriodicCheck(): Promise<void> {
       if (!(await browser.alarms.get("missed-alert-check"))) {
@@ -212,6 +242,7 @@ export default defineBackground({
                     failure: { at, reason: result.reason },
                   },
             );
+            if (result.ok) await ensurePeriodicCheck();
             return result.ok
               ? { ok: true, state }
               : { ok: false, error: result.reason, state };
@@ -240,5 +271,7 @@ export default defineBackground({
         }
       }
     }
+
+    return enqueue(ensurePeriodicCheck).catch(recordCheckUnavailable);
   },
 });

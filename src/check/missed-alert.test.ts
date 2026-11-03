@@ -41,6 +41,16 @@ describe("findMissedReset", () => {
     ).toBeNull();
   });
 
+  it.each([
+    ["2026-11-02T09:55:00.001Z", false],
+    ["2026-11-02T09:55:00.000Z", false],
+    ["2026-11-02T09:54:59.999Z", true],
+  ])("applies the opt-in clock skew boundary: %s", (enabledAt, missed) => {
+    expect(findMissedReset({ ...input(), enabledAt })).toBe(
+      missed ? reset : null,
+    );
+  });
+
   it("ignores a reset older than 24 hours", () => {
     expect(
       findMissedReset({
@@ -114,12 +124,50 @@ describe("findMissedReset", () => {
     ).toBeNull();
   });
 
+  it("matches a push exactly 15 minutes before announcement with clock skew", () => {
+    expect(
+      findMissedReset({
+        ...input(),
+        lastResetAlert: {
+          at: "2026-11-02T09:45:00Z",
+          url: "https://example.com/",
+        },
+      }),
+    ).toBeNull();
+  });
+
+  it.each([reset.source.url!, "https://example.com/"])(
+    "rejects delivery evidence from before the latest opt-in: %s",
+    (url) => {
+      expect(
+        findMissedReset({
+          ...input(),
+          enabledAt: "2026-11-02T09:50:00.001Z",
+          lastResetAlert: { at: "2026-11-02T09:50:00Z", url },
+        }),
+      ).toBe(reset);
+    },
+  );
+
+  it("accepts a push received exactly when alerts were turned on", () => {
+    expect(
+      findMissedReset({
+        ...input(),
+        enabledAt: "2026-11-02T09:50:00Z",
+        lastResetAlert: {
+          at: "2026-11-02T09:50:00Z",
+          url: "https://example.com/",
+        },
+      }),
+    ).toBeNull();
+  });
+
   it("does not match an unrelated push older than the matching window", () => {
     expect(
       findMissedReset({
         ...input(),
         lastResetAlert: {
-          at: "2026-11-02T09:49:59.999Z",
+          at: "2026-11-02T09:44:59.999Z",
           url: "https://example.com/",
         },
       }),
