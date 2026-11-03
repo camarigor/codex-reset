@@ -23,6 +23,10 @@
     "message": "Turn off alerts",
     "description": "Tooltip of the popup toggle while alerts are on."
   },
+  "alertsDisclosure": {
+    "message": "Turning on alerts sends a push subscription (an address for this browser) to codex-resets.com.",
+    "description": "Disclosure shown next to the popup alerts toggle while alerts are off, before anything is sent. Followed by the privacyPolicyLink link."
+  },
   "alertsTurningOn": {
     "message": "Turning on alerts…",
     "description": "Shown while alerts are being turned on."
@@ -48,6 +52,16 @@
       "reason": {
         "content": "$1",
         "example": "network error"
+      }
+    }
+  },
+  "alertsDisableFailed": {
+    "message": "Could not turn off alerts: $REASON$",
+    "description": "Shown when turning alerts off failed and alerts are still on, or the extension could not tell whether they are.",
+    "placeholders": {
+      "reason": {
+        "content": "$1",
+        "example": "storage is full"
       }
     }
   },
@@ -151,6 +165,16 @@
     "message": "Chrome did not grant the background permission.",
     "description": "Shown when the background permission request was denied."
   },
+  "backgroundFailed": {
+    "message": "Could not change the background permission: $REASON$",
+    "description": "Shown when Chrome reported an error while granting or removing the background permission.",
+    "placeholders": {
+      "reason": {
+        "content": "$1",
+        "example": "this function must be called during a user gesture"
+      }
+    }
+  },
   "backgroundLinuxNote": {
     "message": "On Linux, your system may also ask you to allow Chrome to run in the background.",
     "description": "Note under the background control."
@@ -194,6 +218,10 @@
   "disclaimer": {
     "message": "Unofficial. Not affiliated with OpenAI or Codex Resets.",
     "description": "Disclaimer shown with the credit link."
+  },
+  "privacyPolicyLink": {
+    "message": "Privacy policy",
+    "description": "Link to the privacy policy of this extension."
   },
   "loading": {
     "message": "Loading…",

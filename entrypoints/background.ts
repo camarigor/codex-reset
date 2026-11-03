@@ -94,7 +94,16 @@ export default defineBackground({
       );
     });
 
-    browser.runtime.onInstalled.addListener(() => enqueue(ensurePeriodicCheck));
+    browser.runtime.onInstalled.addListener(({ reason }) => {
+      // Alerts start off: the welcome page asks for consent before anything
+      // is sent to codex-resets.com. Updates must not open it again.
+      if (reason === "install") {
+        void browser.tabs.create({
+          url: browser.runtime.getURL("/welcome.html"),
+        });
+      }
+      return enqueue(ensurePeriodicCheck);
+    });
     browser.runtime.onStartup.addListener(() =>
       enqueue(async () => {
         await ensurePeriodicCheck();

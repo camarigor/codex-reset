@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <!-- Chrome does not localize extension pages: main.ts sets the title and every text from _locales. -->
+    <title>__MSG_welcomeTitle__</title>
+    <link rel="stylesheet" href="../../src/ui/tokens.css" />
+    <style>
+      /*
+       * The welcome page opened on install, in the popup's style at page
+       * width. Its consent card is the only place besides the popup where
+       * alerts are turned on. The build links tokens.css after this sheet,
+       * so a rule that overrides it carries two classes, and the page gutter
+       * lives on .page because tokens.css zeroes the body padding.
+       */
+
+      [hidden] {
+        display: none !important;
+      }
+
+      .page {
+        width: min(600px, 100% - 2 * var(--page-padding));
+        margin: 0 auto;
+        padding: 56px 0 48px;
+      }
+
+      .welcome-title {
+        margin: 0;
+        font-family: var(--font-display);
+        font-size: clamp(32px, 7vw, 46px);
+        font-weight: 800;
+        line-height: 1.05;
+        letter-spacing: -0.01em;
+        text-wrap: balance;
+      }
+
+      .lede {
+        margin: 20px 0 0;
+        font-size: 19px;
+        line-height: 1.5;
+      }
+
+      .source {
+        margin: 12px 0 0;
+        color: var(--ink-2);
+        font-size: 16px;
+      }
+
+      /* The consent card: what is sent, then the action and its result. */
+
+      .consent {
+        margin-top: 32px;
+        padding: 22px 24px 24px;
+      }
+
+      .consent-title {
+        margin: 0 0 12px;
+        font-family: var(--font-display);
+        font-size: 24px;
+        font-weight: 800;
+        line-height: 1.2;
+        letter-spacing: -0.01em;
+      }
+
+      .consent > p {
+        margin: 0 0 12px;
+        font-size: 16px;
+      }
+
+      .consent-action {
+        margin-top: 20px;
+      }
+
+      /*
+       * Turn on alerts: the pill button at page size, in sun so the only
+       * action of the page stands out. Hover turns it accent and wiggles the
+       * bell of the popup's alerts toggle; press and focus keep the base
+       * recipes.
+       */
+      .button.enable-alerts {
+        min-height: 46px;
+        padding: 10px 20px;
+        background: var(--sun);
+        color: var(--on-sun);
+        font-size: 17px;
+      }
+
+      .button.enable-alerts:hover:enabled {
+        background: var(--accent);
+        color: var(--on-accent);
+      }
+
+      .bell {
+        width: 17px;
+        height: 17px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 2.2px;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        transform-origin: 50% 15%;
+      }
+
+      .button.enable-alerts:hover:enabled .bell {
+        animation: bell-wiggle 0.5s;
+      }
+
+      @keyframes bell-wiggle {
+        0%,
+        100% {
+          transform: rotate(0);
+        }
+        25% {
+          transform: rotate(-14deg);
+        }
+        55% {
+          transform: rotate(11deg);
+        }
+        80% {
+          transform: rotate(-5deg);
+        }
+      }
+
+      /* The result: the popup's status line, a fact on the fill of its tone. */
+      .result {
+        margin: 16px 0 0;
+        padding: 10px 14px;
+        border: var(--border);
+        border-radius: var(--radius);
+        background: var(--tone-off);
+        color: var(--on-tone-off);
+        box-shadow: var(--shadow-sm);
+        font-size: 15px;
+        line-height: 1.45;
+        overflow-wrap: anywhere;
+      }
+
+      .result[data-tone="ok"] {
+        background: var(--tone-ok);
+        color: var(--on-tone-ok);
+      }
+
+      .result[data-tone="failing"] {
+        background: var(--tone-failing);
+        color: var(--on-tone-failing);
+      }
+
+      .popup-hint {
+        margin: 28px 0 0;
+        color: var(--ink-2);
+        font-size: 15px;
+      }
+
+      .page .credit {
+        margin-top: 40px;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .button.enable-alerts:hover:enabled .bell {
+          animation: none;
+        }
+      }
+    </style>
+    <script type="module" src="./main.ts"></script>
+  </head>
+  <body>
+    <div class="page">
+      <header>
+        <h1 class="welcome-title" id="welcome-title"></h1>
+      </header>
+
+      <main>
+        <p class="lede" id="welcome-intro"></p>
+        <p class="source" id="welcome-source"></p>
+
+        <section class="card consent" aria-labelledby="consent-title">
+          <h2 class="consent-title" id="consent-title"></h2>
+          <p id="consent-subscription"></p>
+          <p id="consent-data"></p>
+          <div class="consent-action">
+            <button
+              class="button enable-alerts"
+              id="enable-alerts"
+              type="button"
+              aria-describedby="result"
+              disabled
+            >
+              <svg
+                class="bell"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+                focusable="false"
+              >
+                <path d="M12 3v2" />
+                <path d="M6 17v-6a6 6 0 0 1 12 0v6l1.5 1.5h-15z" />
+                <path d="M10 20.5a2 2 0 0 0 4 0" />
+              </svg>
+              <span id="enable-alerts-label"></span>
+            </button>
+            <p class="result" id="result" role="status" data-tone="off"></p>
+          </div>
+        </section>
+
+        <p class="popup-hint" id="popup-hint"></p>
+      </main>
+
+      <footer class="credit">
+        <p>
+          <a id="credit-link" target="_blank" rel="noopener noreferrer"></a>
+        </p>
+        <p id="disclaimer"></p>
+      </footer>
+    </div>
+  </body>
+</html>
