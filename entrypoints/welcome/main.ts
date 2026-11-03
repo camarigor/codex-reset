@@ -32,7 +32,6 @@ const STATIC_TEXT: ReadonlyArray<readonly [id: string, key: MessageKey]> = [
   ["enable-alerts-label", "alertsTurnOn"],
   ["popup-hint", "welcomePopupHint"],
   ["credit-link", "creditLink"],
-  ["disclaimer", "disclaimer"],
 ];
 
 // What the page knows; render() draws it. alertsOn is null until the

@@ -130,7 +130,6 @@ const STATIC_TEXT: ReadonlyArray<readonly [id: string, key: MessageKey]> = [
   ["recent-empty", "noResetsYet"],
   ["retry", "retry"],
   ["credit-link", "creditLink"],
-  ["disclaimer", "disclaimer"],
 ];
 
 // Longest delay setTimeout accepts; a longer one fires at once.
