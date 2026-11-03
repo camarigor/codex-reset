@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { formatDays, formatRelativeTime, formatResetType } from "./format";
+import {
+  formatDays,
+  formatRelativeTime,
+  formatResetType,
+  stripShortLinks,
+} from "./format";
 
 const NOW = new Date("2026-11-02T12:00:00.000Z");
 
@@ -76,4 +81,41 @@ describe("formatDays", () => {
       expect(formatDays(value)).toBe("n/a");
     },
   );
+});
+
+describe("stripShortLinks", () => {
+  it.each([
+    ["Day 28/ Banked 2/2", "Day 28/ Banked 2/2"],
+    ["First  line \n\nSecond line", "First  line \n\nSecond line"],
+    [
+      "And it's done. See you tomorrow for some good news. https://t.co/WhJle2cWRG",
+      "And it's done. See you tomorrow for some good news.",
+    ],
+    [
+      "Reset all propagated. https://t.co/qOrzwSeIZZ https://t.co/xKaK95EAly",
+      "Reset all propagated.",
+    ],
+    ["Reset https://t.co/abc confirmed.", "Reset confirmed."],
+    ["Reset https://t.co/abc http://t.co/def confirmed.", "Reset confirmed."],
+    ["  Reset  \thttp://t.co/abc \t confirmed.  ", "Reset confirmed."],
+    ["https://t.co/abc", ""],
+    ["  http://t.co/abc  https://t.co/def  ", ""],
+    ["", ""],
+    [
+      "Read https://example.com/news and http://example.org/reset",
+      "Read https://example.com/news and http://example.org/reset",
+    ],
+    [
+      "https://t.co/abc Read https://x.com/author/status/1 https://t.co/def",
+      "Read https://x.com/author/status/1",
+    ],
+    ["See https://t.co.example.com/abc", "See https://t.co.example.com/abc"],
+    [
+      "First line https://t.co/abc  \n\n  Second line http://t.co/def end.",
+      "First line\n\n  Second line end.",
+    ],
+    ["First\r\nhttps://t.co/abc\r\nLast", "First\r\n\r\nLast"],
+  ])("cleans %j to %j", (text, expected) => {
+    expect(stripShortLinks(text)).toBe(expected);
+  });
 });

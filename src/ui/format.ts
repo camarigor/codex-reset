@@ -42,3 +42,17 @@ export function formatDays(value: number | null): string {
   if (value === null || !Number.isFinite(value) || value < 0) return "n/a";
   return `${value.toFixed(1)} days`;
 }
+
+/** Removes shortened announcement links while preserving other URLs and line breaks. */
+export function stripShortLinks(text: string): string {
+  return text
+    .replace(
+      /[^\S\r\n]*(?:https?:\/\/t\.co\/\S+[^\S\r\n]*)+/g,
+      (links: string, offset: number) => {
+        const before = text[offset - 1];
+        const after = text[offset + links.length];
+        return before && after && !/[\r\n]/.test(before + after) ? " " : "";
+      },
+    )
+    .trim();
+}
