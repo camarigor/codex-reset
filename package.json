@@ -1,6 +1,6 @@
 {
   "name": "codex-reset",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Get a notification when OpenAI Codex usage limits are reset.",
   "private": true,
   "type": "module",
