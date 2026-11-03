@@ -1,11 +1,16 @@
 import { browser, type Browser } from "wxt/browser";
 import {
-  fetchRecentResets,
+  fetchResetHistory,
   fetchStatus,
   type Reset,
+  type ResetHistory,
   type StatusData,
 } from "../../src/api/client";
-import { RECENT_RESETS_LIMIT, SITE_ORIGIN } from "../../src/config";
+import {
+  HISTORY_MAX_PAGES,
+  RECENT_RESETS_LIMIT,
+  SITE_ORIGIN,
+} from "../../src/config";
 import { sendToBackground } from "../../src/messages";
 import type { AlertState } from "../../src/state/store";
 import { formatDays } from "../../src/ui/format";
@@ -185,12 +190,6 @@ const historyText = new WeakMap<Element, HeatmapDayText>();
 const TOOLTIP_GAP_PX = 12;
 const TOOLTIP_ARROW_INSET_PX = 8;
 let tooltipCell: Element | null = null;
-
-// 100 is the largest page of the API. One request holds the whole history
-// while it has at most 100 resets (71 on 2026-11-02); past that, the graph
-// starts at the oldest reset received. The recent resets are the first ones
-// of the same list, which the API sorts newest first by default.
-const HISTORY_LIMIT = 100;
 
 const STATIC_TEXT: ReadonlyArray<readonly [id: string, key: MessageKey]> = [
   ["popup-title", "popupTitle"],
@@ -511,7 +510,11 @@ function renderHistory(resets: readonly Reset[], now: Date): void {
   historyGrid.replaceChildren(...monthLabels, ...days);
 }
 
-function renderData(status: StatusData, resets: Reset[]): void {
+function renderData(
+  status: StatusData,
+  resets: Reset[],
+  firstPage: Reset[],
+): void {
   const now = new Date();
   const latest = status.latest_reset;
   latestReset.hidden = latest === null;
@@ -524,7 +527,7 @@ function renderData(status: StatusData, resets: Reset[]): void {
 
   renderHistory(resets, now);
 
-  const recent = resets.slice(0, RECENT_RESETS_LIMIT);
+  const recent = firstPage.slice(0, RECENT_RESETS_LIMIT);
   recentList.replaceChildren(
     ...recent.map((reset) => resetListItem(buildResetView(reset, now))),
   );
@@ -538,10 +541,11 @@ function renderData(status: StatusData, resets: Reset[]): void {
 
 function renderDataProblem(
   problem: Exclude<PopupData, { kind: "ready" }> | { kind: "loading" },
+  keepData = false,
 ): void {
   clearTimeout(retryTimer);
   resetData.setAttribute("aria-busy", String(problem.kind === "loading"));
-  data.hidden = true;
+  data.hidden = !keepData;
   dataStatus.hidden = false;
   dataMessage.textContent = t(
     problem.kind === "loading"
@@ -569,18 +573,31 @@ function renderDataProblem(
 async function loadResetData(): Promise<void> {
   renderDataProblem({ kind: "loading" });
   let result: PopupData;
+  let history: ResetHistory | undefined;
   try {
     const [status, resets] = await Promise.all([
       fetchStatus(null),
-      fetchRecentResets(HISTORY_LIMIT),
+      fetchResetHistory(HISTORY_MAX_PAGES),
     ]);
-    result = combineResults(status, resets);
+    if (resets.kind === "ok") history = resets.data;
+    result = combineResults(
+      status,
+      resets.kind === "ok" ? { ...resets, data: resets.data.resets } : resets,
+    );
+    if (result.kind !== "ready" && history?.failure?.kind === "rate-limited") {
+      result = combineResults(status, history.failure);
+    }
   } catch {
     // The client reports failures as results; anything thrown still means no data.
     result = { kind: "error" };
   }
-  if (result.kind === "ready") renderData(result.status, result.resets);
-  else renderDataProblem(result);
+  if (result.kind === "ready" && history !== undefined) {
+    renderData(result.status, result.resets, history.firstPage);
+    if (history.failure !== null) {
+      renderDataProblem(history.failure, true);
+    }
+  } else
+    renderDataProblem(result.kind === "ready" ? { kind: "error" } : result);
 }
 
 for (const [id, key] of STATIC_TEXT) byId(id, HTMLElement).textContent = t(key);
