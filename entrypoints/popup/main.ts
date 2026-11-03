@@ -5,10 +5,18 @@ import {
   type Reset,
   type StatusData,
 } from "../../src/api/client";
-import { SITE_ORIGIN } from "../../src/config";
+import { RECENT_RESETS_LIMIT, SITE_ORIGIN } from "../../src/config";
 import { sendToBackground } from "../../src/messages";
 import type { AlertState } from "../../src/state/store";
 import { formatDays } from "../../src/ui/format";
+import {
+  buildHeatmap,
+  describeHeatmapDay,
+  WEEKDAY_LABELS,
+  type HeatmapDay,
+  type HeatmapDayText,
+  type HeatmapKind,
+} from "../../src/ui/heatmap";
 import { t, type MessageKey } from "../../src/ui/i18n";
 import {
   buildResetView,
@@ -117,6 +125,72 @@ disclosure.append(
   }),
 );
 toggleHint.after(disclosure);
+
+// Reset history: the site's graph, between the statistics and the recent
+// resets. The popup markup has no slot for it either, so it is built here;
+// renderHistory fills in the month labels and the days.
+const recentSection = recentList.closest(".recent");
+if (!(recentSection instanceof HTMLElement)) {
+  throw new Error("Popup section .recent is missing.");
+}
+const LEGEND: ReadonlyArray<readonly [kind: HeatmapKind, key: MessageKey]> = [
+  ["regular", "historyLegendRegular"],
+  ["banked", "historyLegendBanked"],
+  ["none", "historyLegendNone"],
+];
+const historyHeading = create("h2", {
+  id: "history-heading",
+  className: "section-title",
+  textContent: t("historyHeading"),
+});
+const legend = create("p", { className: "graph-legend" });
+for (const [kind, key] of LEGEND) {
+  const chip = create("span", { className: "legend-chip" });
+  chip.dataset.kind = kind;
+  const item = create("span", { className: "legend-item" });
+  item.append(chip, t(key));
+  legend.append(item);
+}
+const historyHead = create("div", { className: "section-head" });
+historyHead.append(historyHeading, legend);
+
+// Every day carries its own accessible name, so the weekday and month labels
+// and the tooltip are hidden from screen readers.
+const weekdayLabels = create("div", { className: "cg-weekdays" });
+weekdayLabels.setAttribute("aria-hidden", "true");
+weekdayLabels.append(
+  ...WEEKDAY_LABELS.map((label) =>
+    create("span", { className: "cg-weekday", textContent: label }),
+  ),
+);
+const historyGrid = create("div", { className: "cg-grid" });
+const historyScroll = create("div", { className: "cg-scroll" });
+historyScroll.append(historyGrid);
+const historyTooltip = create("div", { className: "cg-tooltip", hidden: true });
+historyTooltip.setAttribute("aria-hidden", "true");
+const historyGraph = create("div", { className: "cg-container" });
+historyGraph.append(weekdayLabels, historyScroll, historyTooltip);
+const historyCard = create("div", { className: "card graph-card" });
+historyCard.append(historyGraph);
+
+const historySection = create("section", { className: "graph-section" });
+historySection.setAttribute("aria-labelledby", historyHeading.id);
+historySection.append(historyHead, historyCard);
+recentSection.before(historySection);
+
+// The text of each day cell, for its tooltip.
+const historyText = new WeakMap<Element, HeatmapDayText>();
+// Room between a cell and its tooltip, as .cg-tooltip draws it, and the
+// closest the tooltip arrow gets to a rounded corner.
+const TOOLTIP_GAP_PX = 12;
+const TOOLTIP_ARROW_INSET_PX = 8;
+let tooltipCell: Element | null = null;
+
+// 100 is the largest page of the API. One request holds the whole history
+// while it has at most 100 resets (71 on 2026-11-02); past that, the graph
+// starts at the oldest reset received. The recent resets are the first ones
+// of the same list, which the API sorts newest first by default.
+const HISTORY_LIMIT = 100;
 
 const STATIC_TEXT: ReadonlyArray<readonly [id: string, key: MessageKey]> = [
   ["popup-title", "popupTitle"],
@@ -342,6 +416,101 @@ function resetListItem(view: ResetView): HTMLLIElement {
   return item;
 }
 
+/**
+ * Places the tooltip above its cell, or below it when the popup has no room
+ * above. It stays inside the graph, with its arrow on the cell.
+ */
+function placeTooltip(): void {
+  if (tooltipCell === null) return;
+  const cell = tooltipCell.getBoundingClientRect();
+  const graph = historyGraph.getBoundingClientRect();
+  const half = historyTooltip.offsetWidth / 2;
+  const center = cell.left - graph.left + cell.width / 2;
+  const left = Math.max(half, Math.min(center, graph.width - half));
+  const below = cell.top - historyTooltip.offsetHeight - TOOLTIP_GAP_PX < 0;
+  const arrow = Math.max(
+    TOOLTIP_ARROW_INSET_PX,
+    Math.min(center - left + half, 2 * half - TOOLTIP_ARROW_INSET_PX),
+  );
+  historyTooltip.dataset.side = below ? "below" : "above";
+  historyTooltip.style.left = `${left}px`;
+  historyTooltip.style.top = `${(below ? cell.bottom : cell.top) - graph.top}px`;
+  historyTooltip.style.setProperty("--arrow-left", `${arrow}px`);
+}
+
+function hideTooltip(): void {
+  tooltipCell = null;
+  historyTooltip.hidden = true;
+}
+
+/** Shows the tooltip of the day under the pointer or the focus, if any. */
+function followHistory(event: Event): void {
+  const cell =
+    event.target instanceof Element ? event.target.closest(".cg-cell") : null;
+  const text = cell === null ? undefined : historyText.get(cell);
+  if (cell === null || text === undefined) {
+    hideTooltip();
+    return;
+  }
+  historyTooltip.replaceChildren(
+    create("strong", { textContent: text.date }),
+    create("br", {}),
+    text.summary,
+  );
+  historyTooltip.hidden = false;
+  tooltipCell = cell;
+  placeTooltip();
+}
+
+/**
+ * A day with an announcement is a link to it. Any other day is a labeled
+ * image, so the keyboard only stops on days that do something. Future days
+ * are blank and hidden from screen readers.
+ */
+function historyCell(day: HeatmapDay): HTMLElement {
+  if (day.kind === "future") {
+    const blank = create("span", { className: "cg-cell cg-cell--future" });
+    blank.setAttribute("aria-hidden", "true");
+    return blank;
+  }
+  const text = describeHeatmapDay(day);
+  const cell =
+    day.link === null
+      ? create("span", { className: "cg-cell" })
+      : create("a", {
+          className: "cg-cell",
+          href: day.link,
+          target: "_blank",
+          rel: "noopener noreferrer",
+        });
+  if (day.link === null) cell.setAttribute("role", "img");
+  cell.dataset.kind = day.kind;
+  cell.setAttribute("aria-label", text.label);
+  historyText.set(cell, text);
+  return cell;
+}
+
+function renderHistory(resets: readonly Reset[], now: Date): void {
+  hideTooltip();
+  const { weeks, months } = buildHeatmap(resets, now);
+  // Row 1 holds the month labels, each spanning the weeks up to the next one.
+  const monthLabels = months.map(({ label, weekIndex }, index) => {
+    const month = create("span", { className: "cg-month", textContent: label });
+    month.setAttribute("aria-hidden", "true");
+    const end = months[index + 1]?.weekIndex ?? weeks.length;
+    month.style.gridColumn = `${weekIndex + 1} / span ${end - weekIndex}`;
+    return month;
+  });
+  const days = weeks.flatMap((week, weekIndex) =>
+    week.map((day, weekday) => {
+      const cell = historyCell(day);
+      cell.style.gridArea = `${weekday + 2} / ${weekIndex + 1}`;
+      return cell;
+    }),
+  );
+  historyGrid.replaceChildren(...monthLabels, ...days);
+}
+
 function renderData(status: StatusData, resets: Reset[]): void {
   const now = new Date();
   const latest = status.latest_reset;
@@ -353,11 +522,14 @@ function renderData(status: StatusData, resets: Reset[]): void {
   statsAverage.textContent = formatDays(status.stats.avg_interval_days);
   statsSince.textContent = formatDays(status.stats.days_since_last);
 
+  renderHistory(resets, now);
+
+  const recent = resets.slice(0, RECENT_RESETS_LIMIT);
   recentList.replaceChildren(
-    ...resets.map((reset) => resetListItem(buildResetView(reset, now))),
+    ...recent.map((reset) => resetListItem(buildResetView(reset, now))),
   );
-  recentList.hidden = resets.length === 0;
-  recentEmpty.hidden = resets.length > 0;
+  recentList.hidden = recent.length === 0;
+  recentEmpty.hidden = recent.length > 0;
 
   dataStatus.hidden = true;
   data.hidden = false;
@@ -400,7 +572,7 @@ async function loadResetData(): Promise<void> {
   try {
     const [status, resets] = await Promise.all([
       fetchStatus(null),
-      fetchRecentResets(),
+      fetchRecentResets(HISTORY_LIMIT),
     ]);
     result = combineResults(status, resets);
   } catch {
@@ -420,6 +592,12 @@ renderStatus({ tone: "off", text: t("loading") });
 toggle.addEventListener("click", () => void switchAlerts());
 retry.addEventListener("click", () => void loadResetData());
 backgroundToggle.addEventListener("click", switchBackground);
+historyGrid.addEventListener("mouseover", followHistory);
+historyGrid.addEventListener("focusin", followHistory);
+historyGrid.addEventListener("mouseleave", hideTooltip);
+historyGrid.addEventListener("focusout", hideTooltip);
+// Focus scrolls a cell into view after focusin; the tooltip follows it.
+historyScroll.addEventListener("scroll", placeTooltip, { passive: true });
 // The background records alerts and checks while the popup is open.
 browser.storage.onChanged.addListener((_changes, area) => {
   if (area === "local") void refreshAlertState();

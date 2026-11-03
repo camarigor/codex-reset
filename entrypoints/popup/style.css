@@ -377,6 +377,207 @@ body {
   line-height: 1.1;
 }
 
+/*
+ * Reset history: the site's graph, one column per week and one row per
+ * weekday, Sunday first. Narrow: 15px cells, the legend under the heading
+ * and a 12px 12px 10px card. The scroll box runs right to left, so it opens
+ * at the most recent week; its padding leaves room for a grown cell and the
+ * scroll bar.
+ */
+
+.graph-section {
+  --cell-size: 15px;
+  --cell-gap: 4px;
+  --month-row: 20px;
+
+  margin-top: 34px;
+}
+
+.section-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 18px;
+}
+
+.section-head .section-title {
+  margin: 0;
+}
+
+.graph-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px 12px;
+  margin: 0;
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.legend-chip {
+  width: 11px;
+  height: 11px;
+  border: var(--border-thin);
+  border-radius: 3px;
+  background: var(--muted);
+}
+
+.graph-card {
+  padding: 12px 12px 10px;
+}
+
+.cg-container {
+  position: relative;
+  display: flex;
+  gap: 8px;
+}
+
+.cg-weekdays {
+  display: grid;
+  flex: none;
+  grid-auto-rows: var(--cell-size);
+  gap: var(--cell-gap);
+  padding-top: calc(var(--month-row) + var(--cell-gap));
+}
+
+.cg-weekday,
+.cg-month {
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.cg-weekday {
+  display: flex;
+  align-items: center;
+}
+
+.cg-scroll {
+  margin: -4px;
+  padding: 4px 4px 16px;
+  overflow: auto hidden;
+  direction: rtl;
+  scrollbar-width: thin;
+}
+
+.cg-grid {
+  display: grid;
+  grid-auto-columns: var(--cell-size);
+  grid-template-rows: var(--month-row) repeat(7, var(--cell-size));
+  gap: var(--cell-gap);
+  width: max-content;
+  direction: ltr;
+}
+
+/* A label may run past its weeks: only the last one can span a single week. */
+.cg-month {
+  grid-row: 1;
+  align-self: start;
+  line-height: var(--month-row);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/*
+ * Days: muted without a reset, the reset type's fill with an ink border and
+ * a 1.5px shadow otherwise, blank in the future. As on the site, hover and
+ * focus grow a cell instead of drawing the global ring, and the tooltip
+ * shows; only days with an announcement, which have the ink border, can
+ * take focus.
+ */
+.cg-cell {
+  width: var(--cell-size);
+  height: var(--cell-size);
+  border-radius: var(--radius-small);
+  background: var(--muted);
+  transition: transform 0.15s var(--ease-spring);
+}
+
+.cg-cell[data-kind="regular"],
+.cg-cell[data-kind="banked"] {
+  border: var(--border-thin);
+  box-shadow: 1.5px 1.5px 0 var(--shadow-ink);
+}
+
+.cg-cell[data-kind="regular"],
+.legend-chip[data-kind="regular"] {
+  background: var(--regular);
+}
+
+.cg-cell[data-kind="banked"],
+.legend-chip[data-kind="banked"] {
+  background: var(--banked);
+}
+
+.cg-cell:hover,
+.cg-cell:focus-visible {
+  outline: none;
+  transform: scale(1.22);
+}
+
+.cg-cell[data-kind="regular"]:is(:hover, :focus-visible),
+.cg-cell[data-kind="banked"]:is(:hover, :focus-visible) {
+  transform: scale(1.25) rotate(6deg);
+}
+
+.cg-cell--future {
+  background: none;
+}
+
+.cg-cell--future:hover {
+  transform: none;
+}
+
+/*
+ * The site's graph tooltip: --paper on --ink, 12px above the cell
+ * (TOOLTIP_GAP_PX in main.ts), or under it when the popup has no room
+ * above. main.ts sets its position and --arrow-left.
+ */
+.cg-tooltip {
+  position: absolute;
+  z-index: 10;
+  width: max-content;
+  max-width: 260px;
+  padding: 9px 11px;
+  border-radius: var(--radius-tooltip);
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.45;
+  pointer-events: none;
+  transform: translate(-50%, calc(-100% - 12px));
+}
+
+.cg-tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: var(--arrow-left, 50%);
+  border: 6px solid transparent;
+  border-top-color: var(--ink);
+  transform: translateX(-50%);
+}
+
+.cg-tooltip[data-side="below"] {
+  transform: translate(-50%, 12px);
+}
+
+.cg-tooltip[data-side="below"]::after {
+  top: auto;
+  bottom: 100%;
+  border-top-color: transparent;
+  border-bottom-color: var(--ink);
+}
+
 /* Recent resets: the site's log, each entry a bubble without avatar or tail. */
 
 .recent {
@@ -457,7 +658,8 @@ body {
   }
 
   .stat-tile,
-  .retry {
+  .retry,
+  .cg-cell {
     transition: none;
   }
 }
