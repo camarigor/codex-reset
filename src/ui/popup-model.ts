@@ -4,7 +4,7 @@ import type { ApiResult, Reset, ResetType, StatusData } from "../api/client";
 import type { BackgroundRequest } from "../messages";
 import { sanitizeUrl } from "../push/payload";
 import type { AlertState } from "../state/store";
-import { formatRelativeTime, formatResetType } from "./format";
+import { formatRelativeTime, formatResetType, stripShortLinks } from "./format";
 import { t } from "./i18n";
 
 export type StatusTone = "off" | "ok" | "warning" | "failing";
@@ -138,7 +138,7 @@ export function buildResetView(
       timeStyle: "short",
       timeZone,
     }).format(new Date(reset.announced_at)),
-    text: reset.text,
+    text: stripShortLinks(reset.text),
     source:
       source.url !== undefined
         ? { kind: "link", url: sanitizeUrl(source.url) }

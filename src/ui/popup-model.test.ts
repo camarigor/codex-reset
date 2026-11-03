@@ -219,6 +219,17 @@ const RESET: Reset = {
 };
 
 describe("buildResetView", () => {
+  it("removes short links from the text and keeps the announcement link", () => {
+    const reset = {
+      ...RESET,
+      text: "Reset https://t.co/abc confirmed. https://t.co/def",
+    };
+    const view = buildResetView(reset, NOW, "UTC");
+    expect(view.text).toBe("Reset confirmed.");
+    expect(view.source).toEqual({ kind: "link", url: RESET.source.url });
+    expect(reset.text).toBe("Reset https://t.co/abc confirmed. https://t.co/def");
+  });
+
   it("formats a reset for display", () => {
     const view = buildResetView(RESET, NOW, "UTC");
     expect({ ...view, exactTime: view.exactTime.replace(/\s/g, " ") }).toEqual({

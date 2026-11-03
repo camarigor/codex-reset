@@ -22,6 +22,7 @@ import {
   resubscribe,
 } from "../src/push/subscription";
 import { DEFAULT_STATE, loadState, updateState } from "../src/state/store";
+import { stripShortLinks } from "../src/ui/format";
 
 function isRequest(value: unknown): value is BackgroundRequest {
   return (
@@ -143,7 +144,7 @@ export default defineBackground({
             showMissedAlert: async (reset) => {
               const missed: MissedResetInfo = {
                 resetType: reset.reset_type,
-                text: reset.text,
+                text: stripShortLinks(reset.text),
                 url: sanitizeUrl(reset.source.url),
               };
               if (registeredAgain) {
