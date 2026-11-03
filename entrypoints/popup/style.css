@@ -1,0 +1,463 @@
+@import url("../../src/ui/tokens.css");
+
+/*
+ * The popup of design section 7.3, 360px wide. That is narrower than the
+ * site's 480px and 640px breakpoints, so each component takes the site's
+ * narrow values ("narrow:" marks them). Controls keep their own hover,
+ * press and focus recipes instead of sharing one.
+ */
+
+[hidden] {
+  display: none !important;
+}
+
+html {
+  scrollbar-color: var(--ink-3) transparent;
+  scrollbar-width: thin;
+}
+
+body {
+  width: 360px;
+  max-width: none;
+  padding: 0 var(--page-padding) var(--space-5);
+}
+
+/* Masthead. Narrow: 8px gap, no wrapping, title clamp(20px, 5.6vw, 26px). */
+
+.masthead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 24px 0 4px;
+}
+
+.masthead-title {
+  min-width: 0;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(20px, 5.6vw, 26px);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+}
+
+/*
+ * Alerts toggle: the site's push toggle as its narrow layout draws it, a 40px
+ * icon button with a hidden label, a 1px shadow and a 1px press. Hover only
+ * wiggles the bell, the accent fill marks it pressed, and focus keeps the
+ * global ring.
+ */
+
+.alerts-toggle {
+  flex: none;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  margin-left: auto;
+  padding: 0;
+  box-shadow: 1px 1px 0 var(--shadow-ink);
+}
+
+.alerts-toggle:active {
+  box-shadow: none;
+  transform: translate(1px, 1px);
+}
+
+.bell {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transform-origin: 50% 15%;
+}
+
+.alerts-toggle[aria-pressed="true"] .bell {
+  fill: currentColor;
+}
+
+.alerts-toggle:hover .bell {
+  animation: bell-wiggle 0.5s;
+}
+
+@keyframes bell-wiggle {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  25% {
+    transform: rotate(-14deg);
+  }
+  55% {
+    transform: rotate(11deg);
+  }
+  80% {
+    transform: rotate(-5deg);
+  }
+}
+
+/* Status line: a fact about the alert channel on the fill of its tone. */
+
+.alerts {
+  margin-top: var(--space-4);
+}
+
+.status-line {
+  margin: 0;
+  padding: 10px 14px;
+  border: var(--border);
+  border-radius: var(--radius);
+  background: var(--tone-off);
+  color: var(--on-tone-off);
+  box-shadow: var(--shadow-sm);
+  font-size: 14px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.status-line[data-tone="ok"] {
+  background: var(--tone-ok);
+  color: var(--on-tone-ok);
+}
+
+.status-line[data-tone="warning"] {
+  background: var(--tone-warning);
+  color: var(--on-tone-warning);
+}
+
+.status-line[data-tone="failing"] {
+  background: var(--tone-failing);
+  color: var(--on-tone-failing);
+}
+
+/* The site's push hint: an italic note under the control, gone when empty. */
+
+.toggle-hint {
+  margin: 10px 2px 0;
+  color: var(--ink-2);
+  font-size: 13px;
+  font-style: italic;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.toggle-hint:empty {
+  display: none;
+}
+
+/* Loading, error and rate limit states of the reset data. */
+
+.data-status {
+  margin-top: 22px;
+  padding: 16px 18px;
+}
+
+.data-message {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 15px;
+  font-style: italic;
+}
+
+/*
+ * Retry: the site's "show all resets" pill, which turns sun on hover and
+ * presses 2px. Its accent focus outline is under 3:1 on paper, so it keeps
+ * the global ink ring.
+ */
+
+.retry {
+  margin-top: 14px;
+  transition:
+    transform var(--press-duration),
+    box-shadow var(--press-duration),
+    background-color var(--press-duration);
+}
+
+.retry:hover:enabled {
+  background: var(--sun);
+  color: var(--on-sun);
+}
+
+.retry:active {
+  box-shadow: 0 0 0 var(--shadow-ink);
+  transform: translate(2px, 2px);
+}
+
+/* Latest reset: the site's hero card. Narrow: padding 20px 18px 22px. */
+
+.hero-card {
+  margin-top: 22px;
+  padding: 20px 18px 22px;
+  transform: rotate(-0.4deg);
+}
+
+.hero-label {
+  margin: 0 0 14px;
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* Narrow: padding 0 10px 3px. */
+.hero-figure {
+  display: inline-block;
+  margin: 0;
+  padding: 0 10px 3px;
+  border-radius: var(--radius-highlight);
+  background: var(--sun);
+  color: var(--on-sun);
+  font-family: var(--font-display);
+  font-size: clamp(40px, 7.5vw, 68px);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  cursor: default;
+  transform: rotate(-1.2deg);
+  animation: pop-in 0.5s var(--ease-spring) both;
+}
+
+.hero-figure--muted {
+  background: var(--muted);
+  color: var(--ink);
+  font-size: clamp(26px, 5vw, 40px);
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: rotate(-1.2deg) scale(0.85);
+  }
+  to {
+    opacity: 1;
+    transform: rotate(-1.2deg) scale(1);
+  }
+}
+
+/* Narrow: 11px, and the exact time does not wrap. */
+.hero-sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin: 14px 0 0;
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.hero-sub time {
+  white-space: nowrap;
+}
+
+/* Reset type: a pill in the colors the site's graph gives each type. */
+
+.type-badge {
+  display: inline-block;
+  padding: 0 8px 1px;
+  border: var(--border-thin);
+  border-radius: var(--radius-pill);
+  background: var(--regular);
+  color: var(--on-regular);
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.type-badge[data-type="banked"] {
+  background: var(--banked);
+  color: var(--on-banked);
+}
+
+/* Announcement text, clamped to three lines like the site's log. */
+
+.reset-text {
+  display: -webkit-box;
+  margin: 12px 0 0;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 16px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+}
+
+.log-item .reset-text {
+  margin-top: 0;
+}
+
+.reset-link,
+.reset-note {
+  display: inline-block;
+  margin: 10px 0 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.reset-link::after {
+  content: " \2192" / "";
+}
+
+.reset-note {
+  color: var(--ink-3);
+}
+
+/*
+ * Statistics: the site's three tiles. Narrow: 12px gap, padding
+ * 10px 12px 12px, 9px labels and 22px values. Labels stay opaque: the
+ * site's 0.75 opacity fails AA on the dark rose tile. The site writes days
+ * as "5.9d"; formatDays writes "5.9 days", which needs more room than a
+ * third of the row, so the count tile takes only its content's width.
+ */
+
+.stat-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  margin: 26px 0 0;
+  padding: 0;
+}
+
+.stat-tile {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-width: 0;
+  padding: 10px 12px 12px;
+  border: var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  transition: transform 0.2s var(--ease-spring);
+}
+
+.stat-tile--sun {
+  background: var(--sun);
+  color: var(--on-sun);
+  transform: rotate(-1deg);
+}
+
+.stat-tile--rose {
+  background: var(--rose);
+  color: var(--on-rose);
+  transform: rotate(0.8deg);
+}
+
+.stat-tile--sky {
+  background: var(--sky);
+  color: var(--on-sky);
+  transform: rotate(-0.6deg);
+}
+
+.stat-tile:hover {
+  transform: rotate(0) translateY(-3px);
+}
+
+.stat-tile dt {
+  margin: 0 0 4px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* A value too long for its tile, such as "67.7 days", wraps before the unit. */
+.stat-tile dd {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+/* Recent resets: the site's log, each entry a bubble without avatar or tail. */
+
+.recent {
+  margin-top: 34px;
+}
+
+.section-title {
+  margin: 0 0 18px;
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
+.log-list {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.log-item {
+  min-width: 0;
+  padding: 14px 18px;
+  border: var(--border);
+  border-radius: var(--radius-bubble);
+  background: var(--card);
+  box-shadow: var(--shadow);
+}
+
+.log-item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-bottom: 8px;
+}
+
+.log-item-time {
+  padding: 1px 10px 2px;
+  border: var(--border-thin);
+  border-radius: var(--radius-pill);
+  background: var(--sun);
+  color: var(--on-sun);
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.log-item-abs {
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.log-empty {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 16.5px;
+  font-style: italic;
+}
+
+/* Credit and disclaimer (tokens.css draws the rule and the type). */
+
+.credit {
+  margin-top: 30px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-figure,
+  .alerts-toggle:hover .bell {
+    animation: none;
+  }
+
+  .stat-tile,
+  .retry {
+    transition: none;
+  }
+}
