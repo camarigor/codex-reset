@@ -1,10 +1,10 @@
 {
   "extName": {
-    "message": "Reset Alerts for Codex (Unofficial)",
+    "message": "Reset Alerts for Codex",
     "description": "Extension name in the manifest and the Chrome Web Store. Working name until the final name is chosen."
   },
   "extDescription": {
-    "message": "Get a system notification when OpenAI resets the Codex usage limits. Unofficial; alerts come from codex-resets.com.",
+    "message": "Get a system notification when OpenAI resets the Codex usage limits. Alerts come from codex-resets.com.",
     "description": "Extension description in the manifest. At most 132 characters."
   },
   "popupTitle": {
@@ -214,10 +214,6 @@
   "creditLink": {
     "message": "Data from Codex Resets",
     "description": "Credit link to https://codex-resets.com, required wherever its data is shown. Keep the site name unchanged."
-  },
-  "disclaimer": {
-    "message": "Unofficial. Not affiliated with OpenAI or Codex Resets.",
-    "description": "Disclaimer shown with the credit link."
   },
   "privacyPolicyLink": {
     "message": "Privacy policy",
