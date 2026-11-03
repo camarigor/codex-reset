@@ -4,6 +4,8 @@ import {
   MISSED_ALERT_WINDOW_HOURS,
 } from "../config";
 
+const CLOCK_SKEW_TOLERANCE_MINUTES = 5;
+
 export function findMissedReset(input: {
   latestReset: Reset | null;
   enabledAt: string | null;
@@ -25,7 +27,7 @@ export function findMissedReset(input: {
 
   const age = checked - announced;
   if (
-    announced <= enabled ||
+    announced <= enabled + CLOCK_SKEW_TOLERANCE_MINUTES * 60_000 ||
     age < MISSED_ALERT_GRACE_MINUTES * 60_000 ||
     age > MISSED_ALERT_WINDOW_HOURS * 3_600_000
   )
@@ -34,8 +36,10 @@ export function findMissedReset(input: {
   // Provisional matching until a real push payload establishes a stable reset identifier.
   if (
     lastResetAlert &&
+    received !== null &&
+    received >= enabled &&
     (lastResetAlert.url === reset.source.url ||
-      (received !== null && received >= announced - 10 * 60_000))
+      received >= announced - (10 + CLOCK_SKEW_TOLERANCE_MINUTES) * 60_000)
   )
     return null;
 

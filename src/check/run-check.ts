@@ -1,5 +1,6 @@
+import { browser } from "wxt/browser";
 import type { fetchStatus, Reset } from "../api/client";
-import type { AlertState, loadState, updateState } from "../state/store";
+import type { loadState, updateState } from "../state/store";
 import { findMissedReset } from "./missed-alert";
 
 function message(error: unknown): string {
@@ -8,14 +9,9 @@ function message(error: unknown): string {
     : "Unable to complete the missed-alert check.";
 }
 
-// Keep the notification marker when a push clears failure, without extending AlertState.
-function notificationMarker(state: AlertState): string {
-  return (
-    state.lastCheck?.detail?.match(
-      /Missed reset already notified: "(?:\\.|[^"\\])*"$/,
-    )?.[0] ?? ""
-  );
-}
+const NOTIFIED_RESET_KEY = "missedAlertNotifiedResetId";
+const RETRY_AFTER_KEY = "checkRetryAfterUntil";
+const MAX_RETRY_AFTER_SECONDS = 24 * 60 * 60;
 
 export async function runMissedAlertCheck(deps: {
   fetchStatus: typeof fetchStatus;
@@ -29,20 +25,23 @@ export async function runMissedAlertCheck(deps: {
   if (state.mode !== "on") return "skipped";
   const now = deps.now();
   const at = now.toISOString();
-  const retryAt =
-    state.lastCheck?.outcome === "unavailable"
-      ? state.lastCheck.detail?.match(/^Rate limited until (\S+)\./)?.[1]
-      : undefined;
-  if (retryAt && now.getTime() < Date.parse(retryAt)) return "unavailable";
+  const metadata = await browser.storage.local.get([
+    NOTIFIED_RESET_KEY,
+    RETRY_AFTER_KEY,
+  ]);
+  const retryAt: unknown = metadata[RETRY_AFTER_KEY];
+  if (
+    typeof retryAt === "number" &&
+    Number.isFinite(retryAt) &&
+    now.getTime() < retryAt
+  )
+    return "unavailable";
+  await browser.storage.local.remove(RETRY_AFTER_KEY);
 
   async function unavailable(detail: string): Promise<"unavailable"> {
-    await deps.updateState((current) => ({
-      lastCheck: {
-        at,
-        outcome: "unavailable",
-        detail: [detail, notificationMarker(current)].filter(Boolean).join(" "),
-      },
-    }));
+    await deps.updateState({
+      lastCheck: { at, outcome: "unavailable", detail },
+    });
     return "unavailable";
   }
 
@@ -56,8 +55,14 @@ export async function runMissedAlertCheck(deps: {
   if (state.mode !== "on") return "skipped";
   if (result.kind === "error") return unavailable(result.message);
   if (result.kind === "rate-limited") {
-    const retry = new Date(now.getTime() + result.retryAfterSeconds * 1000);
-    return unavailable(`Rate limited until ${retry.toISOString()}.`);
+    const retrySeconds = Math.min(
+      result.retryAfterSeconds,
+      MAX_RETRY_AFTER_SECONDS,
+    );
+    await browser.storage.local.set({
+      [RETRY_AFTER_KEY]: now.getTime() + retrySeconds * 1000,
+    });
+    return unavailable("The API is rate limited. The check will retry later.");
   }
   if (result.kind === "not-modified" && !state.statusCache) {
     return unavailable("The API returned 304 without cached status.");
@@ -76,20 +81,20 @@ export async function runMissedAlertCheck(deps: {
     now,
   });
   if (!missed) {
-    const marker = notificationMarker(state);
-    await deps.updateState({
-      lastCheck: { at, outcome: "ok", ...(marker ? { detail: marker } : {}) },
-    });
+    await deps.updateState({ lastCheck: { at, outcome: "ok" } });
     return "ok";
   }
 
-  const marker = `Missed reset already notified: ${JSON.stringify(missed.id)}`;
   if (
     state.failure?.missedResetId === missed.id ||
-    notificationMarker(state) === marker
+    metadata[NOTIFIED_RESET_KEY] === missed.id
   ) {
     await deps.updateState({
-      lastCheck: { at, outcome: "missed", detail: marker },
+      lastCheck: {
+        at,
+        outcome: "missed",
+        detail: "This missed reset was already reported.",
+      },
     });
     return "missed";
   }
@@ -126,8 +131,9 @@ export async function runMissedAlertCheck(deps: {
   await deps.updateState({
     endpoint,
     failure: { at, reason: failureReason, missedResetId: missed.id },
-    lastCheck: { at, outcome: "missed", detail: marker },
+    lastCheck: { at, outcome: "missed", detail: failureReason },
   });
+  await browser.storage.local.set({ [NOTIFIED_RESET_KEY]: missed.id });
   try {
     await deps.showMissedAlert(missed);
   } catch (error) {

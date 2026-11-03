@@ -10,7 +10,7 @@ import {
   SITE_ORIGIN,
   STARTUP_CHECK_DELAY_MINUTES,
 } from "../config";
-import { loadState, updateState } from "../state/store";
+import { loadState, updateState, type AlertState } from "../state/store";
 import { runMissedAlertCheck } from "./run-check";
 
 const reset: Reset = {
@@ -135,6 +135,66 @@ describe("runMissedAlertCheck", () => {
     expect(deps.fetchStatus).toHaveBeenCalledTimes(2);
   });
 
+  it("stores retry metadata separately from human check details", async () => {
+    const deps = dependencies();
+    deps.fetchStatus.mockResolvedValueOnce({
+      kind: "rate-limited",
+      retryAfterSeconds: 60,
+    });
+    await runMissedAlertCheck(deps);
+    expect(await browser.storage.local.get("checkRetryAfterUntil")).toEqual({
+      checkRetryAfterUntil: Date.parse(at) + 60_000,
+    });
+    expect((await loadState()).lastCheck?.detail).toBe(
+      "The API is rate limited. The check will retry later.",
+    );
+    await updateState({
+      lastCheck: { at, outcome: "ok", detail: "Human text changed." },
+    });
+    expect(await runMissedAlertCheck(deps)).toBe("unavailable");
+    expect(deps.fetchStatus).toHaveBeenCalledOnce();
+    deps.now = () => new Date(Date.parse(at) + 60_000);
+    await runMissedAlertCheck(deps);
+    expect(
+      (await browser.storage.local.get("checkRetryAfterUntil"))
+        .checkRetryAfterUntil,
+    ).toBeUndefined();
+  });
+
+  it("caps Retry-After at 24 hours and resumes at the deadline", async () => {
+    const deps = dependencies();
+    deps.fetchStatus.mockResolvedValueOnce({
+      kind: "rate-limited",
+      retryAfterSeconds: Number.MAX_SAFE_INTEGER,
+    });
+    await runMissedAlertCheck(deps);
+    deps.now = () => new Date("2026-11-03T11:59:59.999Z");
+    expect(await runMissedAlertCheck(deps)).toBe("unavailable");
+    expect(deps.fetchStatus).toHaveBeenCalledOnce();
+    deps.now = () => new Date("2026-11-03T12:00:00Z");
+    expect(await runMissedAlertCheck(deps)).toBe("ok");
+    expect(deps.fetchStatus).toHaveBeenCalledTimes(2);
+  });
+
+  it("stores the notified reset id independently of check details and channel failure", async () => {
+    const deps = dependencies();
+    await runMissedAlertCheck(deps);
+    expect(
+      await browser.storage.local.get("missedAlertNotifiedResetId"),
+    ).toEqual({ missedAlertNotifiedResetId: reset.id });
+    expect((await loadState()).lastCheck?.detail).toBe(
+      "The reset push alert was not received.",
+    );
+    await updateState({ failure: null, lastCheck: { at, outcome: "ok" } });
+    const restarted = dependencies();
+    expect(await runMissedAlertCheck(restarted)).toBe("missed");
+    expect(restarted.showMissedAlert).not.toHaveBeenCalled();
+    expect(restarted.resubscribe).not.toHaveBeenCalled();
+    expect((await loadState()).lastCheck?.detail).toBe(
+      "This missed reset was already reported.",
+    );
+  });
+
   it("records unavailable when fetching unexpectedly throws", async () => {
     const deps = dependencies();
     deps.fetchStatus.mockRejectedValue(new Error("Offline"));
@@ -145,11 +205,23 @@ describe("runMissedAlertCheck", () => {
 
   it("notifies, resubscribes and records failure on a miss", async () => {
     const deps = dependencies();
+    const observations: {
+      registrations: number;
+      failure: AlertState["failure"];
+    }[] = [];
     deps.showMissedAlert.mockImplementation(async () => {
-      expect(deps.resubscribe).toHaveBeenCalledOnce();
-      expect((await loadState()).failure?.missedResetId).toBe(reset.id);
+      observations.push({
+        registrations: deps.resubscribe.mock.calls.length,
+        failure: (await loadState()).failure,
+      });
     });
     expect(await runMissedAlertCheck(deps)).toBe("missed");
+    expect(observations).toEqual([
+      {
+        registrations: 1,
+        failure: expect.objectContaining({ missedResetId: reset.id }),
+      },
+    ]);
     expect(deps.showMissedAlert).toHaveBeenCalledExactlyOnceWith(reset);
     expect(await loadState()).toMatchObject({
       mode: "on",
@@ -258,7 +330,7 @@ describe("runMissedAlertCheck", () => {
   });
 });
 
-function startBackground() {
+async function startBackground() {
   const worker = {
     registration: {
       pushManager: {
@@ -288,11 +360,11 @@ function startBackground() {
     return Response.json({ ok: true });
   });
   vi.stubGlobal("fetch", fetchMock);
-  background.main();
-  const fireAlarm = async (name: string) => {
+  await background.main();
+  const fireAlarm = async (name: string, scheduledTime = Date.now()) => {
     await alarm.mock.calls[0]![0]({
       name,
-      scheduledTime: 0,
+      scheduledTime,
       persistAcrossSessions: true,
     });
   };
@@ -315,8 +387,97 @@ describe("missed alert background wiring", () => {
   });
   afterEach(() => vi.useRealTimers());
 
+  it("ensures the periodic alarm on every worker start without duplicating it", async () => {
+    const fixture = await startBackground();
+    expect(fixture.create).toHaveBeenCalledExactlyOnceWith(
+      "missed-alert-check",
+      {
+        periodInMinutes: CHECK_INTERVAL_MINUTES,
+      },
+    );
+    fixture.create.mockClear();
+    await background.main();
+    expect(fixture.create).not.toHaveBeenCalled();
+    expect(fixture.fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("restores a missing periodic alarm when alerts are enabled", async () => {
+    const message = vi.spyOn(browser.runtime.onMessage, "addListener");
+    const fixture = await startBackground();
+    await browser.alarms.clear("missed-alert-check");
+    fixture.create.mockClear();
+    await updateState({ mode: "off" });
+    const response = await new Promise<unknown>((resolve) => {
+      message.mock.calls[0]![0]({ type: "enable-alerts" }, {}, resolve);
+    });
+    expect(response).toMatchObject({ ok: true });
+    expect(fixture.create).toHaveBeenCalledExactlyOnceWith(
+      "missed-alert-check",
+      {
+        periodInMinutes: CHECK_INTERVAL_MINUTES,
+      },
+    );
+  });
+
+  it.each(["missed-alert-check", "missed-alert-check-startup"])(
+    "defers an overdue %s without fetching or notifying",
+    async (name) => {
+      const fixture = await startBackground();
+      fixture.create.mockClear();
+      await fixture.fireAlarm(name, Date.now() - 3 * 3_600_000);
+      expect(fixture.fetchMock).not.toHaveBeenCalled();
+      expect(
+        fixture.worker.registration.showNotification,
+      ).not.toHaveBeenCalled();
+      expect(fixture.create).toHaveBeenCalledExactlyOnceWith(
+        "missed-alert-check-startup",
+        {
+          delayInMinutes: STARTUP_CHECK_DELAY_MINUTES,
+        },
+      );
+      expect((await loadState()).lastCheck).toBeNull();
+    },
+  );
+
+  it.each([0, 1])(
+    "applies the overdue alarm boundary: extra milliseconds=%s",
+    async (extra) => {
+      const fixture = await startBackground();
+      fixture.create.mockClear();
+      await fixture.fireAlarm(
+        "missed-alert-check",
+        Date.now() - STARTUP_CHECK_DELAY_MINUTES * 60_000 - extra,
+      );
+      expect(fixture.fetchMock).toHaveBeenCalledTimes(extra ? 0 : 2);
+      expect(fixture.create).toHaveBeenCalledTimes(extra ? 1 : 0);
+    },
+  );
+
+  it.each(["missed-alert-check", "missed-alert-check-startup"])(
+    "records an unexpected %s failure and continues handling alarms",
+    async (name) => {
+      const fixture = await startBackground();
+      vi.spyOn(browser.storage.local, "get").mockRejectedValueOnce(
+        new Error("Storage read failed"),
+      );
+      await expect(fixture.fireAlarm(name)).resolves.toBeUndefined();
+      expect((await loadState()).lastCheck).toEqual({
+        at,
+        outcome: "unavailable",
+        detail: "Storage read failed",
+      });
+      expect(fixture.fetchMock).not.toHaveBeenCalled();
+      await fixture.fireAlarm(name);
+      expect(
+        fixture.worker.registration.showNotification,
+      ).toHaveBeenCalledOnce();
+    },
+  );
+
   it("creates the periodic check on install", async () => {
-    const fixture = startBackground();
+    const fixture = await startBackground();
+    await browser.alarms.clear("missed-alert-check");
+    fixture.create.mockClear();
     await fixture.installed.mock.calls[0]![0]({ reason: "install" });
     expect(fixture.create).toHaveBeenCalledWith("missed-alert-check", {
       periodInMinutes: CHECK_INTERVAL_MINUTES,
@@ -326,7 +487,7 @@ describe("missed alert background wiring", () => {
   it.each([false, true])(
     "restores only a missing periodic alarm and delays the startup check: exists=%s",
     async (exists) => {
-      const fixture = startBackground();
+      const fixture = await startBackground();
       fixture.get.mockImplementation(async () =>
         exists
           ? {
@@ -337,6 +498,7 @@ describe("missed alert background wiring", () => {
             }
           : undefined,
       );
+      fixture.create.mockClear();
       await fixture.startup.mock.calls[0]![0]();
       expect(fixture.create).toHaveBeenCalledWith(
         "missed-alert-check-startup",
@@ -350,7 +512,7 @@ describe("missed alert background wiring", () => {
   it.each(["missed-alert-check", "missed-alert-check-startup"])(
     "runs %s, renews first and sanitizes the API URL",
     async (name) => {
-      const fixture = startBackground();
+      const fixture = await startBackground();
       fixture.fetchMock.mockImplementation(async (url) => {
         if (url === ENDPOINTS.status)
           return Response.json({
@@ -384,7 +546,7 @@ describe("missed alert background wiring", () => {
   );
 
   it("shows a truthful notification when registering again fails", async () => {
-    const fixture = startBackground();
+    const fixture = await startBackground();
     fixture.fetchMock.mockImplementation(async (url) =>
       url === ENDPOINTS.status
         ? Response.json({ data })
@@ -409,7 +571,7 @@ describe("missed alert background wiring", () => {
   });
 
   it("does not flag a reset whose push arrived late", async () => {
-    const fixture = startBackground();
+    const fixture = await startBackground();
     await fixture.startup.mock.calls[0]![0]();
     const pushHandler = fixture.worker.addEventListener.mock.calls.find(
       ([name]) => name === "push",
@@ -432,7 +594,7 @@ describe("missed alert background wiring", () => {
   });
 
   it("serializes coincident alarms and ignores unrelated alarms", async () => {
-    const fixture = startBackground();
+    const fixture = await startBackground();
     await fixture.fireAlarm("unrelated");
     expect(fixture.fetchMock).not.toHaveBeenCalled();
     await Promise.all([
