@@ -279,7 +279,7 @@ a:focus-visible {
   opacity: 0.6;
 }
 
-/* Credit and disclaimer, shown wherever Codex Resets data appears. */
+/* Credit, shown wherever Codex Resets data appears. */
 .credit {
   border-top: var(--border);
   padding-top: 18px;
