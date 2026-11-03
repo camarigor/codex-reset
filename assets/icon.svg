@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <!--
+    An hourglass tipped over mid-flip: the usage window starts over.
+    Colors come from the light theme in src/ui/tokens.css: ink #26201a,
+    sun #ffd84d, card #fffdf7 and accent #ff5c2b.
+    The base icon assets/icon.png is this drawing rendered at 1024 x 1024
+    on a transparent background, for example with
+    resvg -w 1024 -h 1024 assets/icon.svg assets/icon.png
+  -->
+  <defs>
+    <path id="glass" d="M-18 -24C-18 -10 -4 -7 -4 0C-4 7 -18 10 -18 24H18C18 10 4 7 4 0C4 -7 18 -10 18 -24Z"/>
+    <clipPath id="glass-inside">
+      <use href="#glass"/>
+    </clipPath>
+  </defs>
+
+  <!-- Badge with a hard offset shadow -->
+  <circle cx="67.5" cy="67.5" r="50" fill="#26201a"/>
+  <circle cx="60.5" cy="60.5" r="46.5" fill="#ffd84d" stroke="#26201a" stroke-width="7"/>
+
+  <!-- Hourglass -->
+  <g transform="translate(60.5 60.5) rotate(-14)">
+    <use href="#glass" fill="#fffdf7"/>
+    <g fill="#ff5c2b" clip-path="url(#glass-inside)">
+      <path d="M-20 -15Q0 -9 20 -15V0H-20Z"/>
+      <rect x="-1.25" y="-2" width="2.5" height="24"/>
+      <path d="M-13 25Q0 9 13 25Z"/>
+    </g>
+    <use href="#glass" fill="none" stroke="#26201a" stroke-width="6" stroke-linejoin="round"/>
+    <rect x="-22" y="-32" width="44" height="9" rx="3" fill="#26201a"/>
+    <rect x="-22" y="23" width="44" height="9" rx="3" fill="#26201a"/>
+  </g>
+</svg>
