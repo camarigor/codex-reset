@@ -1,4 +1,4 @@
-import { browser } from "wxt/browser";
+import { browser, type Browser } from "wxt/browser";
 import {
   fetchRecentResets,
   fetchStatus,
@@ -44,6 +44,14 @@ function field<T extends HTMLElement>(
   return element;
 }
 
+/** Creates an element with the given properties, for the markup built here. */
+function create<K extends keyof HTMLElementTagNameMap>(
+  tag: K,
+  properties: Partial<HTMLElementTagNameMap[K]>,
+): HTMLElementTagNameMap[K] {
+  return Object.assign(document.createElement(tag), properties);
+}
+
 const toggle = byId("alerts-toggle", HTMLButtonElement);
 const statusLine = byId("status-line", HTMLParagraphElement);
 const toggleHint = byId("toggle-hint", HTMLParagraphElement);
@@ -60,6 +68,55 @@ const statsSince = byId("stats-since", HTMLElement);
 const recentList = byId("recent-list", HTMLOListElement);
 const recentEmpty = byId("recent-empty", HTMLParagraphElement);
 const resetItem = byId("reset-item", HTMLTemplateElement);
+
+// "Keep alerts with Chrome closed" asks for the optional background
+// permission. The popup markup has no slot for it, so it is built here from
+// the classes of the alerts area, between the alerts and the reset data.
+const BACKGROUND: Browser.permissions.Permissions = {
+  permissions: ["background"],
+};
+const backgroundToggle = create("button", {
+  id: "background-toggle",
+  className: "button",
+  type: "button",
+  disabled: true,
+  textContent: t("backgroundToggle"),
+});
+const backgroundNote = create("p", {
+  id: "background-note",
+  className: "toggle-hint",
+});
+const linuxNote = create("p", {
+  className: "toggle-hint",
+  hidden: true,
+  textContent: t("backgroundLinuxNote"),
+});
+backgroundToggle.setAttribute("aria-pressed", "false");
+backgroundToggle.setAttribute("aria-describedby", backgroundNote.id);
+backgroundNote.setAttribute("aria-live", "polite");
+const backgroundOption = create("div", { className: "alerts" });
+backgroundOption.append(backgroundToggle, backgroundNote, linuxNote);
+resetData.before(backgroundOption);
+
+// While the toggle would turn alerts on, it sits next to what that sends, so
+// consent never depends on having read the welcome page.
+const PRIVACY_POLICY_URL = "https://camarigor.github.io/codex-reset/privacy/";
+const disclosure = create("p", {
+  id: "alerts-disclosure",
+  className: "toggle-hint",
+  hidden: true,
+});
+disclosure.append(
+  t("alertsDisclosure"),
+  " ",
+  create("a", {
+    href: PRIVACY_POLICY_URL,
+    target: "_blank",
+    rel: "noopener noreferrer",
+    textContent: t("privacyPolicyLink"),
+  }),
+);
+toggleHint.after(disclosure);
 
 const STATIC_TEXT: ReadonlyArray<readonly [id: string, key: MessageKey]> = [
   ["popup-title", "popupTitle"],
@@ -82,6 +139,10 @@ const MAX_TIMER_MS = 2 ** 31 - 1;
 let alertMode: AlertState["mode"] | null = null;
 let toggleBusy = false;
 let retryTimer: ReturnType<typeof setTimeout> | undefined;
+// null until permissions.contains answers, or when it failed.
+let backgroundGranted: boolean | null = null;
+let backgroundBusy = false;
+let backgroundProblem: string | null = null;
 
 function errorMessage(error: unknown): string {
   return error instanceof Error && error.message
@@ -89,9 +150,43 @@ function errorMessage(error: unknown): string {
     : String(error);
 }
 
+/** Ends a reason that closes a message as a sentence. */
+function asSentence(text: string): string {
+  const trimmed = text.trim();
+  return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
+}
+
+/**
+ * describeToggleFailure words a failed turn-off only when alerts ended off.
+ * This adds the message for one that left alerts on, or whose outcome is
+ * unknown because the background did not answer.
+ */
+function describeFailure(
+  request: ToggleRequest,
+  reason: string,
+  mode: AlertState["mode"] | null,
+): string {
+  return request === "disable-alerts" && mode !== "off"
+    ? t("alertsDisableFailed", [asSentence(reason)])
+    : describeToggleFailure(request, reason, mode);
+}
+
 function renderStatus(line: StatusLine): void {
   statusLine.dataset.tone = line.tone;
   statusLine.textContent = line.text;
+}
+
+/**
+ * Shows the disclosure whenever a click on the toggle would turn alerts on,
+ * including when their state is unknown. Screen readers hear it with the
+ * toggle only while it is shown.
+ */
+function renderDisclosure(): void {
+  disclosure.hidden = alertMode === "on";
+  toggle.setAttribute(
+    "aria-describedby",
+    disclosure.hidden ? statusLine.id : `${statusLine.id} ${disclosure.id}`,
+  );
 }
 
 function renderAlertState(state: AlertState): void {
@@ -100,6 +195,7 @@ function renderAlertState(state: AlertState): void {
   toggle.setAttribute("aria-pressed", String(on));
   toggle.title = t(on ? "alertsTurnOff" : "alertsTurnOn");
   renderStatus(buildStatusLine(state, new Date()));
+  renderDisclosure();
 }
 
 async function refreshAlertState(): Promise<void> {
@@ -110,6 +206,7 @@ async function refreshAlertState(): Promise<void> {
   } catch (error) {
     // No state to report; say why instead of guessing whether alerts are on.
     renderStatus({ tone: "failing", text: errorMessage(error) });
+    renderDisclosure();
   } finally {
     if (!toggleBusy) toggle.disabled = false;
   }
@@ -129,9 +226,9 @@ async function switchAlerts(): Promise<void> {
     renderAlertState(response.state);
     toggleHint.textContent = response.ok
       ? ""
-      : describeToggleFailure(request, response.error, response.state.mode);
+      : describeFailure(request, response.error, response.state.mode);
   } catch (error) {
-    toggleHint.textContent = describeToggleFailure(
+    toggleHint.textContent = describeFailure(
       request,
       errorMessage(error),
       null,
@@ -142,6 +239,73 @@ async function switchAlerts(): Promise<void> {
     // Disabling the button moved focus away; give it back to keyboard users.
     if (hadFocus) toggle.focus();
   }
+}
+
+function renderBackground(): void {
+  backgroundToggle.setAttribute(
+    "aria-pressed",
+    String(backgroundGranted === true),
+  );
+  // Clickable once the state is known, or after reading it failed.
+  backgroundToggle.disabled =
+    backgroundBusy ||
+    (backgroundGranted === null && backgroundProblem === null);
+  const stateNote =
+    backgroundGranted === null
+      ? null
+      : t(backgroundGranted ? "backgroundOnNote" : "backgroundOffNote");
+  backgroundNote.textContent = [backgroundProblem, stateNote]
+    .filter((text) => text !== null)
+    .join(" ");
+}
+
+async function refreshBackground(): Promise<void> {
+  try {
+    backgroundGranted = await browser.permissions.contains(BACKGROUND);
+  } catch (error) {
+    backgroundGranted = null;
+    backgroundProblem = errorMessage(error);
+  }
+  renderBackground();
+}
+
+function switchBackground(): void {
+  const grant = backgroundGranted !== true;
+  // permissions.request only works during the click's user gesture, so it
+  // starts before anything else awaits.
+  const change = grant
+    ? browser.permissions.request(BACKGROUND)
+    : browser.permissions.remove(BACKGROUND);
+  const hadFocus = document.activeElement === backgroundToggle;
+  backgroundBusy = true;
+  backgroundProblem = null;
+  renderBackground();
+  void change
+    .then(
+      (changed) => {
+        if (grant && !changed) backgroundProblem = t("backgroundDenied");
+      },
+      (error: unknown) => {
+        backgroundProblem = t("backgroundFailed", [
+          asSentence(errorMessage(error)),
+        ]);
+      },
+    )
+    .then(async () => {
+      backgroundBusy = false;
+      // The state shown always comes from Chrome, not from the answer above.
+      await refreshBackground();
+      if (hadFocus) backgroundToggle.focus();
+    });
+}
+
+/** Follows changes made elsewhere: another popup, or Chrome itself. */
+function followBackgroundChange(
+  permissions: Browser.permissions.Permissions,
+): void {
+  if (!permissions.permissions?.includes("background")) return;
+  backgroundProblem = null;
+  void refreshBackground();
 }
 
 function fillReset(root: ParentNode, view: ResetView): void {
@@ -256,10 +420,23 @@ renderStatus({ tone: "off", text: t("loading") });
 
 toggle.addEventListener("click", () => void switchAlerts());
 retry.addEventListener("click", () => void loadResetData());
+backgroundToggle.addEventListener("click", switchBackground);
 // The background records alerts and checks while the popup is open.
 browser.storage.onChanged.addListener((_changes, area) => {
   if (area === "local") void refreshAlertState();
 });
+browser.permissions.onAdded.addListener(followBackgroundChange);
+browser.permissions.onRemoved.addListener(followBackgroundChange);
+// The note names Linux itself, so it stays correct where the platform is unknown.
+void browser.runtime.getPlatformInfo().then(
+  ({ os }) => {
+    linuxNote.hidden = os !== "linux";
+  },
+  () => {
+    linuxNote.hidden = false;
+  },
+);
 
 void refreshAlertState();
+void refreshBackground();
 void loadResetData();
