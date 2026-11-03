@@ -16,12 +16,26 @@
  * controls are exempt.
  */
 
+/*
+ * Baloo 2 1.700 Bold and ExtraBold, subset to printable ASCII, U+2026
+ * (ellipsis) and U+2192 (right arrow), which covers every UI string;
+ * unicode-range declares the same set. The subsets keep kerning and the
+ * liga, locl and tnum features (tnum for the tabular-nums statistics). Any
+ * other character falls back to the next font of --font-display, so a text
+ * that needs one needs a new subset of the full fonts (the TTF files in the
+ * git history of public/fonts), made with:
+ *   pyftsubset <font>.ttf --unicodes=U+0020-007E,U+2026,U+2192
+ *     --layout-features+=tnum --layout-features-=frac,numr,dnom
+ *     --name-IDs='*' --name-legacy --name-languages='*' --flavor=woff2
+ */
+
 @font-face {
   font-family: "Baloo 2";
   font-style: normal;
   font-weight: 700;
   font-display: block;
-  src: url("/fonts/Baloo2-Bold.ttf") format("truetype");
+  src: url("/fonts/Baloo2-Bold.woff2") format("woff2");
+  unicode-range: U+0020-007E, U+2026, U+2192;
 }
 
 @font-face {
@@ -29,7 +43,8 @@
   font-style: normal;
   font-weight: 800;
   font-display: block;
-  src: url("/fonts/Baloo2-ExtraBold.ttf") format("truetype");
+  src: url("/fonts/Baloo2-ExtraBold.woff2") format("woff2");
+  unicode-range: U+0020-007E, U+2026, U+2192;
 }
 
 :root {
