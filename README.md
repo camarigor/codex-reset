@@ -4,7 +4,7 @@ A Chrome extension that alerts you when OpenAI Codex usage limits are reset, wit
 
 **Status:** early development, not published yet.
 
-This is an unofficial project. It is not affiliated with OpenAI or with [Codex Resets](https://codex-resets.com).
+Reset data and alerts come from [Codex Resets](https://codex-resets.com).
 
 ## License
 
