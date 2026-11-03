@@ -21,7 +21,7 @@ import {
   enableAlerts,
   resubscribe,
 } from "../src/push/subscription";
-import { loadState, updateState } from "../src/state/store";
+import { DEFAULT_STATE, loadState, updateState } from "../src/state/store";
 
 function isRequest(value: unknown): value is BackgroundRequest {
   return (
@@ -42,7 +42,7 @@ export default defineBackground({
 
     worker.addEventListener("push", (event) => {
       event.waitUntil(
-        enqueue(async () => {
+        (async () => {
           const alert = parsePushPayload(event.data?.text() ?? null);
           const at = new Date().toISOString();
           await showAlert(worker.registration, alert);
@@ -57,8 +57,10 @@ export default defineBackground({
               ? { lastResetAlert: { at, url: alert.url } }
               : {}),
             failure: null,
+          }).catch(() => {
+            // Recording must not reject a push whose notification was shown.
           });
-        }),
+        })(),
       );
     });
 
@@ -151,15 +153,23 @@ export default defineBackground({
       (request: unknown, sender, sendResponse) => {
         if (sender.id !== undefined && sender.id !== browser.runtime.id) return;
         if (!isRequest(request)) return;
-        void enqueue(() => handleRequest(request))
-          .catch(async (error: unknown): Promise<BackgroundResponse> => ({
-            ok: false,
-            error:
-              error instanceof Error
-                ? error.message
-                : "Unable to update alert state.",
-            state: await loadState(),
-          }))
+        void handleRequest(request)
+          .catch(async (error: unknown): Promise<BackgroundResponse> => {
+            let state = DEFAULT_STATE;
+            try {
+              state = await loadState();
+            } catch {
+              // A storage failure must still produce a response.
+            }
+            return {
+              ok: false,
+              error:
+                error instanceof Error
+                  ? error.message
+                  : "Unable to update alert state.",
+              state,
+            };
+          })
           .then(sendResponse);
         return true;
       },
@@ -178,45 +188,57 @@ export default defineBackground({
     async function handleRequest(
       request: BackgroundRequest,
     ): Promise<BackgroundResponse> {
-      if (request.type === "get-alert-state")
-        return { ok: true, state: await loadState() };
-      if (request.type === "enable-alerts") {
-        const previous = await loadState();
-        const result = await enableAlerts(worker.registration.pushManager);
-        const at = new Date().toISOString();
-        const state = await updateState(
-          result.ok
-            ? {
-                mode: "on",
-                enabledAt:
-                  previous.mode === "on" ? (previous.enabledAt ?? at) : at,
-                endpoint: result.endpoint,
-                failure: null,
-              }
-            : {
-                mode: "off",
-                enabledAt: null,
-                endpoint: null,
-                failure: { at, reason: result.reason },
-              },
-        );
-        return result.ok
-          ? { ok: true, state }
-          : { ok: false, error: result.reason, state };
+      switch (request.type) {
+        case "get-alert-state":
+          return { ok: true, state: await loadState() };
+        case "enable-alerts":
+          return enqueue(async () => {
+            const previous = await loadState();
+            const result = await enableAlerts(worker.registration.pushManager);
+            const at = new Date().toISOString();
+            const state = await updateState(
+              result.ok
+                ? {
+                    mode: "on",
+                    enabledAt:
+                      previous.mode === "on" ? (previous.enabledAt ?? at) : at,
+                    endpoint: result.endpoint,
+                    failure: null,
+                  }
+                : {
+                    mode: "off",
+                    enabledAt: null,
+                    endpoint: null,
+                    failure: { at, reason: result.reason },
+                  },
+            );
+            return result.ok
+              ? { ok: true, state }
+              : { ok: false, error: result.reason, state };
+          });
+        case "disable-alerts":
+          return enqueue(async () => {
+            const result = await disableAlerts(worker.registration.pushManager);
+            const error =
+              result.reason ??
+              (result.serverNotified
+                ? null
+                : "The server could not be notified that alerts are off.");
+            const state = await updateState({
+              mode: "off",
+              enabledAt: null,
+              endpoint: null,
+              failure: error
+                ? { at: new Date().toISOString(), reason: error }
+                : null,
+            });
+            return error ? { ok: false, error, state } : { ok: true, state };
+          });
+        default: {
+          const exhaustive: never = request;
+          return exhaustive;
+        }
       }
-      const result = await disableAlerts(worker.registration.pushManager);
-      const error =
-        result.reason ??
-        (result.serverNotified
-          ? null
-          : "The server could not be notified that alerts are off.");
-      const state = await updateState({
-        mode: "off",
-        enabledAt: null,
-        endpoint: null,
-        failure: error ? { at: new Date().toISOString(), reason: error } : null,
-      });
-      return error ? { ok: false, error, state } : { ok: true, state };
     }
   },
 });

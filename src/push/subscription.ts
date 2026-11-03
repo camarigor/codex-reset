@@ -76,12 +76,13 @@ async function post(
 }
 
 async function remove(
+  push: PushHost,
   subscription: PushSubscriptionLike,
   fetchFn: typeof fetch,
 ): Promise<DisableResult> {
   let localFailure: string | undefined;
   try {
-    if (!(await subscription.unsubscribe())) {
+    if (!(await subscription.unsubscribe()) && (await push.getSubscription())) {
       localFailure = "The browser did not remove the push subscription.";
     }
   } catch (error) {
@@ -113,7 +114,7 @@ async function register(
   try {
     let subscription = await push.getSubscription();
     if (subscription && (replace || !usesSiteKey(subscription))) {
-      const removed = await remove(subscription, fetchFn);
+      const removed = await remove(push, subscription, fetchFn);
       // A server failure is recoverable, but a live local subscription must not be replaced.
       if (await push.getSubscription()) {
         return {
@@ -163,7 +164,7 @@ export function disableAlerts(
     try {
       const subscription = await push.getSubscription();
       return subscription
-        ? await remove(subscription, fetchFn)
+        ? await remove(push, subscription, fetchFn)
         : { serverNotified: true };
     } catch (error) {
       return { serverNotified: false, reason: reason(error) };

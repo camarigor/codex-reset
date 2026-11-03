@@ -4,7 +4,7 @@ import { browser } from "wxt/browser";
 import background from "../../entrypoints/background";
 import { ENDPOINTS, SITE_ORIGIN, SITE_VAPID_PUBLIC_KEY } from "../config";
 import { sendToBackground, type BackgroundResponse } from "../messages";
-import { loadState } from "../state/store";
+import { DEFAULT_STATE, loadState } from "../state/store";
 import {
   disableAlerts,
   enableAlerts,
@@ -72,6 +72,68 @@ afterEach(() => {
 });
 
 describe("subscription lifecycle", () => {
+  it("subscribes with a 65-byte uncompressed site key", async () => {
+    const { push } = createPush();
+    await enableAlerts(push, createFetch());
+    const key = push.subscribe.mock.calls[0]![0].applicationServerKey;
+    const bytes = new Uint8Array(key as ArrayBuffer);
+    expect(bytes).toHaveLength(65);
+    expect(bytes[0]).toBe(4);
+  });
+
+  it("reports subscribe rejection without contacting the server and allows retry", async () => {
+    const { push, current } = createPush();
+    push.subscribe.mockRejectedValueOnce(new Error("Permission denied"));
+    const fetchFn = createFetch();
+    expect(await enableAlerts(push, fetchFn)).toEqual({
+      ok: false,
+      reason: "Permission denied",
+    });
+    expect(fetchFn).not.toHaveBeenCalled();
+    expect(current()).toBeNull();
+    expect((await enableAlerts(push, fetchFn)).ok).toBe(true);
+  });
+
+  it("replaces locally removed subscriptions even if server unregistration fails", async () => {
+    const { push, current } = createPush(new Uint8Array([1]).buffer);
+    const old = current()!;
+    const fetchFn = createFetch().mockRejectedValueOnce(new Error("Offline"));
+    expect(await enableAlerts(push, fetchFn)).toEqual({
+      ok: true,
+      endpoint: "https://push.example/2",
+    });
+    expect(old.unsubscribe).toHaveBeenCalledOnce();
+    expect(current()!.endpoint).toBe("https://push.example/2");
+    expect(fetchFn.mock.calls.map(([url]) => url)).toEqual([
+      ENDPOINTS.unsubscribe,
+      ENDPOINTS.subscribe,
+    ]);
+  });
+
+  it.each([false, true])(
+    "checks a live subscription after unsubscribe returns false: %s",
+    async (stillLive) => {
+      const { push, current } = createPush(siteKey);
+      const old = current()!;
+      const unsubscribe = vi.mocked(old.unsubscribe).getMockImplementation()!;
+      vi.mocked(old.unsubscribe).mockImplementationOnce(async () => {
+        if (!stillLive) await unsubscribe();
+        return false;
+      });
+      const result = await disableAlerts(push, createFetch());
+      expect(result).toEqual(
+        stillLive
+          ? {
+              serverNotified: true,
+              reason: "The browser did not remove the push subscription.",
+            }
+          : { serverNotified: true },
+      );
+      expect(push.getSubscription).toHaveBeenCalledTimes(2);
+      expect(current()).toBe(stillLive ? old : null);
+    },
+  );
+
   it("reuses a subscription made with the site key", async () => {
     const { push, current } = createPush(siteKey);
     const subscription = current()!;
@@ -264,6 +326,150 @@ function startBackground() {
 }
 
 describe("background wiring", () => {
+  it.each(["enable-alerts", "disable-alerts"])(
+    "clears stored failure after successful %s",
+    async (type) => {
+      const { request } = startBackground();
+      await request("enable-alerts");
+      await fakeBrowser.storage.local.set({
+        alertState: {
+          ...(await loadState()),
+          failure: { at: "old", reason: "Offline" },
+        },
+      });
+      const response = await request(type);
+      expect(response.ok).toBe(true);
+      expect(response.state.failure).toBeNull();
+      expect(response.state.mode).toBe(type === "enable-alerts" ? "on" : "off");
+    },
+  );
+
+  it("continues lifecycle and push handling after a storage rejection", async () => {
+    const { request, dispatch, worker } = startBackground();
+    vi.spyOn(fakeBrowser.storage.local, "set").mockRejectedValueOnce(
+      new Error("Storage unavailable"),
+    );
+    expect(await request("enable-alerts")).toMatchObject({
+      ok: false,
+      error: "Storage unavailable",
+    });
+    expect((await request("get-alert-state")).ok).toBe(true);
+    expect((await request("disable-alerts")).ok).toBe(true);
+    await dispatch("push", { data: null });
+    expect(worker.registration.showNotification).toHaveBeenCalledOnce();
+    expect((await loadState()).lastAlert?.kind).toBe("reset");
+  });
+
+  it("continues lifecycle and push handling after a notification rejection", async () => {
+    const { request, dispatch, worker } = startBackground();
+    worker.registration.showNotification.mockRejectedValueOnce(
+      new Error("Notification unavailable"),
+    );
+    await expect(dispatch("push", { data: null })).rejects.toThrow(
+      "Notification unavailable",
+    );
+    expect((await loadState()).lastAlert).toBeNull();
+    expect((await request("get-alert-state")).ok).toBe(true);
+    expect((await request("enable-alerts")).ok).toBe(true);
+    await dispatch("push", { data: null });
+    expect(worker.registration.showNotification).toHaveBeenCalledTimes(2);
+    expect((await loadState()).lastAlert?.kind).toBe("reset");
+  });
+
+  it.each([
+    { message: { type: "unknown" }, sender: {} },
+    { message: null, sender: {} },
+    { message: "disable-alerts", sender: {} },
+    {
+      message: { type: "disable-alerts" },
+      sender: { id: "foreign-extension" },
+    },
+  ])("ignores untrusted messages: $message", async ({ message, sender }) => {
+    const { request, messageListener, push, worker } = startBackground();
+    await request("enable-alerts");
+    const state = await loadState();
+    const set = vi.spyOn(fakeBrowser.storage.local, "set");
+    const sendResponse = vi.fn();
+    const listener = messageListener.mock.calls[0]![0];
+    expect(listener(message, sender, sendResponse)).toBeUndefined();
+    await request("get-alert-state");
+    expect(sendResponse).not.toHaveBeenCalled();
+    expect(set).not.toHaveBeenCalled();
+    expect(push.subscribe).toHaveBeenCalledOnce();
+    expect(vi.mocked(fetch)).toHaveBeenCalledOnce();
+    expect(worker.registration.showNotification).not.toHaveBeenCalled();
+    expect(await loadState()).toEqual(state);
+  });
+
+  it("reads state while a lifecycle request is waiting for the server", async () => {
+    const { request } = startBackground();
+    const gate = Promise.withResolvers<Response>();
+    vi.mocked(fetch).mockReturnValueOnce(gate.promise);
+    const enable = request("enable-alerts");
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledOnce());
+    let response: BackgroundResponse | undefined;
+    const read = request("get-alert-state").then((value) => {
+      response = value;
+    });
+    try {
+      await vi.waitFor(
+        () => expect(response).toEqual({ ok: true, state: DEFAULT_STATE }),
+        { timeout: 1000 },
+      );
+    } finally {
+      gate.resolve(Response.json({ ok: true }));
+      await Promise.all([enable, read]);
+    }
+  });
+
+  it("shows and records push while a lifecycle request is waiting for the server", async () => {
+    const { request, dispatch, worker } = startBackground();
+    const gate = Promise.withResolvers<Response>();
+    vi.mocked(fetch).mockReturnValueOnce(gate.promise);
+    const enable = request("enable-alerts");
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledOnce());
+    const push = dispatch("push", { data: null });
+    try {
+      await vi.waitFor(
+        () =>
+          expect(worker.registration.showNotification).toHaveBeenCalledOnce(),
+        { timeout: 1000 },
+      );
+      await push;
+      expect((await loadState()).lastAlert?.kind).toBe("reset");
+    } finally {
+      gate.resolve(Response.json({ ok: true }));
+      await Promise.all([enable, push]);
+    }
+  });
+
+  it("settles push after showing it when recording fails", async () => {
+    const { dispatch, worker } = startBackground();
+    vi.spyOn(fakeBrowser.storage.local, "set").mockRejectedValueOnce(
+      new Error("Storage unavailable"),
+    );
+    await expect(dispatch("push", { data: null })).resolves.toBeUndefined();
+    expect(worker.registration.showNotification).toHaveBeenCalledOnce();
+    expect((await loadState()).lastAlert).toBeNull();
+    await dispatch("push", { data: null });
+    expect((await loadState()).lastAlert?.kind).toBe("reset");
+  });
+
+  it.each(["enable-alerts", "disable-alerts", "get-alert-state"])(
+    "responds with defaults when both the request and recovery reads fail: %s",
+    async (type) => {
+      const { request } = startBackground();
+      vi.spyOn(fakeBrowser.storage.local, "get").mockRejectedValue(
+        new Error("Storage unavailable"),
+      );
+      expect(await request(type)).toEqual({
+        ok: false,
+        error: "Storage unavailable",
+        state: DEFAULT_STATE,
+      });
+    },
+  );
+
   it("registers all listeners synchronously and reads the default state", async () => {
     const { worker, messageListener, request } = startBackground();
     expect(worker.addEventListener.mock.calls.map(([name]) => name)).toEqual([
