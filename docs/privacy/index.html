@@ -1,0 +1,505 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <!-- Static page: no scripts, fonts, images or other remote resources. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'"
+    />
+    <meta name="referrer" content="no-referrer" />
+    <meta
+      name="description"
+      content="Privacy policy of Reset Alerts for Codex (Unofficial), a Chrome extension: what it sends to codex-resets.com, what stays on your device, and how to stop it."
+    />
+    <title>Privacy policy | Reset Alerts for Codex (Unofficial)</title>
+    <link rel="icon" href="data:," />
+    <style>
+      /* Colors follow the extension's design tokens (src/ui/tokens.css). */
+      :root {
+        color-scheme: light;
+        --paper: #fff4dd;
+        --card: #fffdf7;
+        --muted: #f1e3c4;
+        --ink: #26201a;
+        --ink-2: #5c5347;
+        --link-hover: #be3500;
+        --accent: #ff5c2b;
+        --sun: #ffd84d;
+        --on-sun: var(--ink);
+        --dot-ink: #26201a1a;
+        --shadow-ink: var(--ink);
+        --font-display:
+          "Baloo 2", "Arial Rounded MT Bold", ui-rounded, system-ui, sans-serif;
+        --font-body: system-ui, -apple-system, "Segoe UI", sans-serif;
+        --font-mono:
+          ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          color-scheme: dark;
+          --paper: oklch(18% 0.012 70);
+          --card: oklch(24% 0.014 70);
+          --muted: oklch(35% 0.022 75);
+          --ink: oklch(93% 0.025 80);
+          --ink-2: oklch(76% 0.025 75);
+          --link-hover: oklch(70% 0.195 38);
+          --accent: oklch(67% 0.2 38);
+          --sun: oklch(75% 0.135 82);
+          --on-sun: oklch(22% 0.04 82);
+          --dot-ink: #f6e8cf14;
+          --shadow-ink: oklch(8% 0.005 70);
+        }
+      }
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      html {
+        -webkit-text-size-adjust: 100%;
+        text-size-adjust: 100%;
+      }
+
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font-family: var(--font-body);
+        font-size: 17px;
+        line-height: 1.6;
+        overflow-wrap: break-word;
+      }
+
+      .page {
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 40px 16px 32px;
+      }
+
+      a {
+        color: var(--ink);
+        text-decoration: underline;
+        text-decoration-color: var(--accent);
+        text-decoration-thickness: 2px;
+        text-underline-offset: 3px;
+      }
+
+      a:hover,
+      a:focus-visible {
+        color: var(--link-hover);
+      }
+
+      :focus-visible {
+        outline: 3px solid var(--ink);
+        outline-offset: 2px;
+      }
+
+      ::selection {
+        background: var(--sun);
+        color: var(--on-sun);
+      }
+
+      h1,
+      h2 {
+        margin: 0;
+        font-family: var(--font-display);
+        font-weight: 800;
+        letter-spacing: -0.01em;
+      }
+
+      h1 {
+        font-size: clamp(34px, 8vw, 48px);
+        line-height: 1.05;
+      }
+
+      h2 {
+        margin-top: 40px;
+        font-size: clamp(22px, 5vw, 28px);
+        line-height: 1.15;
+      }
+
+      p,
+      ul,
+      ol {
+        margin: 12px 0 0;
+      }
+
+      ul,
+      ol {
+        padding-left: 1.4em;
+      }
+
+      li + li {
+        margin-top: 6px;
+      }
+
+      code {
+        padding: 1px 6px;
+        border-radius: 6px;
+        background: var(--muted);
+        color: var(--ink);
+        font-family: var(--font-mono);
+        font-size: 0.88em;
+        overflow-wrap: anywhere;
+      }
+
+      .eyebrow {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        margin: 0 0 10px;
+        font-family: var(--font-display);
+        font-size: 18px;
+        font-weight: 700;
+        line-height: 1.3;
+      }
+
+      .badge {
+        padding: 2px 10px;
+        border: 2px solid var(--ink);
+        border-radius: 999px;
+        background: var(--sun);
+        color: var(--on-sun);
+        box-shadow: 2px 2px 0 var(--shadow-ink);
+        font-size: 14px;
+      }
+
+      .meta {
+        margin-top: 10px;
+        color: var(--ink-2);
+        font-size: 15px;
+      }
+
+      .lead {
+        margin-top: 24px;
+      }
+
+      .card {
+        margin-top: 28px;
+        padding: 4px 22px 22px;
+        border: 2px solid var(--ink);
+        border-radius: 14px;
+        background-color: var(--card);
+        background-image: radial-gradient(
+          var(--dot-ink) 1.5px,
+          transparent 1.5px
+        );
+        background-size: 18px 18px;
+        box-shadow: 6px 6px 0 var(--shadow-ink);
+      }
+
+      .card h2 {
+        margin-top: 18px;
+      }
+
+      .credit {
+        margin-top: 48px;
+        padding-top: 18px;
+        border-top: 2px solid var(--ink);
+        color: var(--ink-2);
+        font-size: 14px;
+      }
+
+      .credit p {
+        margin: 0 0 6px;
+      }
+
+      @media (max-width: 480px) {
+        body {
+          font-size: 16px;
+        }
+
+        .page {
+          padding-top: 28px;
+        }
+
+        .card {
+          padding: 2px 16px 18px;
+          box-shadow: 4px 4px 0 var(--shadow-ink);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <header>
+        <p class="eyebrow">
+          Reset Alerts for Codex <span class="badge">Unofficial</span>
+        </p>
+        <h1>Privacy policy</h1>
+        <p class="meta">
+          Effective date: <time datetime="2026-11-02">2026-11-02</time>
+        </p>
+      </header>
+
+      <main>
+        <p class="lead">
+          Reset Alerts for Codex (Unofficial) is a Chrome extension that shows a
+          notification when Codex Resets reports a possible or confirmed reset
+          of the OpenAI Codex usage limits, and shows the latest resets in its
+          popup. It is an independent project. It is not made by, affiliated
+          with, or endorsed by OpenAI or Codex Resets. This page explains what
+          data the extension handles, where it goes, and how to stop it.
+        </p>
+
+        <section class="card" aria-labelledby="in-short">
+          <h2 id="in-short">In short</h2>
+          <ul>
+            <li>
+              There is no account, sign-in, analytics, advertising or tracking.
+            </li>
+            <li>
+              Alerts stay off until you turn them on. Then the extension sends
+              this browser's push subscription to codex-resets.com, which uses
+              it to send you the alerts.
+            </li>
+            <li>
+              Apart from links you click, the extension's network requests go
+              only to codex-resets.com. Its developer runs no server and
+              receives none of your data.
+            </li>
+            <li>
+              Your alert settings and the last alert received stay on your
+              device.
+            </li>
+          </ul>
+        </section>
+
+        <section aria-labelledby="sent">
+          <h2 id="sent">What the extension sends to codex-resets.com</h2>
+          <p>
+            <a href="https://codex-resets.com">Codex Resets</a>
+            (codex-resets.com) is an independent site, not run by this
+            extension's developer, that tracks Codex usage limit resets and
+            sends the alerts. The extension contacts it in these cases:
+          </p>
+          <ul>
+            <li>
+              <strong>When you turn alerts on.</strong> Chrome creates a push
+              subscription for the extension, and the extension sends it to
+              codex-resets.com: the endpoint (a unique address for this
+              subscription at your browser's push service), the two keys that
+              let Codex Resets encrypt each alert for this browser (the
+              <code>p256dh</code> public key and the <code>auth</code> secret),
+              and the subscription's expiration time, if it has one. While
+              alerts stay on, the extension registers a new subscription the
+              same way when Chrome replaces the old one, and when its
+              missed-alert check finds a reset that push did not deliver. When
+              it registers again, it first asks codex-resets.com to remove the
+              previous subscription if this browser still has it.
+            </li>
+            <li>
+              <strong>When you turn alerts off.</strong> The extension removes
+              the subscription from Chrome and sends its endpoint to
+              codex-resets.com, asking the site to remove its record.
+            </li>
+            <li>
+              <strong>When it reads public reset data.</strong> When you open
+              the popup, or press Retry in it, the extension reads the public
+              status and the five most recent resets from the Codex Resets
+              public API. While alerts are on, it also reads the public status
+              about 5 minutes after Chrome starts and every 3 hours, to notice a
+              reset whose alert did not arrive (the missed-alert check). These
+              reads carry no personal data. The missed-alert check sends back
+              the version tag (ETag) that the site attached to its previous
+              answer, so unchanged data is not downloaded again.
+            </li>
+          </ul>
+          <p>
+            The extension never sends your name, email address, details of your
+            OpenAI or Google account, browsing history, or the content of web
+            pages. It cannot read them: it has no access to web pages and asks
+            for access to no site other than codex-resets.com.
+          </p>
+        </section>
+
+        <section aria-labelledby="delivery">
+          <h2 id="delivery">How alerts reach your browser</h2>
+          <p>
+            Codex Resets sends each alert to the push endpoint, and your
+            browser's push service delivers it. For Chrome, the push service is
+            Firebase Cloud Messaging, operated by Google. Chrome, not the
+            extension, keeps the connection to that service. The alerts are
+            encrypted with the keys described above, so the push service cannot
+            read their content. The extension then shows each alert as a
+            notification.
+          </p>
+        </section>
+
+        <section aria-labelledby="ip">
+          <h2 id="ip">Your IP address</h2>
+          <p>
+            As with any web request, the requests to codex-resets.com reveal
+            your IP address and standard browser information, such as the user
+            agent, to codex-resets.com and its hosting provider. The push
+            service also sees the IP address of the connection that Chrome keeps
+            with it. The extension itself does not read or store your IP
+            address. Codex Resets describes its own handling in its
+            <a href="https://codex-resets.com/privacy">privacy notice</a>, and
+            Google describes its handling in the
+            <a href="https://policies.google.com/privacy"
+              >Google Privacy Policy</a
+            >.
+          </p>
+        </section>
+
+        <section aria-labelledby="local">
+          <h2 id="local">What stays on your device</h2>
+          <p>
+            The extension keeps its state in Chrome's local extension storage
+            (<code>chrome.storage.local</code>). It does not use sync storage,
+            so none of it is copied to your Google account. It stores:
+          </p>
+          <ul>
+            <li>whether alerts are on, and when they were turned on;</li>
+            <li>the push endpoint, while alerts are on;</li>
+            <li>
+              the last alert received (its time, kind, title and link), and the
+              time and link of the last confirmed reset alert;
+            </li>
+            <li>
+              the result of the last missed-alert check, the last error, and the
+              ID of the last missed reset it reported;
+            </li>
+            <li>
+              a copy of the last public status with its ETag and, after the site
+              asks the extension to slow down, the time when it may ask again.
+            </li>
+          </ul>
+          <p>
+            Chrome itself keeps the push subscription, with its keys, while
+            alerts are on. Removing the extension deletes the extension's stored
+            data from your device.
+          </p>
+        </section>
+
+        <section aria-labelledby="off">
+          <h2 id="off">Turning alerts off, and deletion</h2>
+          <p>
+            Turning alerts off does three things: it removes the push
+            subscription from Chrome, so alerts sent to that address no longer
+            reach you; it asks codex-resets.com to remove its record of the
+            subscription; and it clears the endpoint that the extension stored.
+            If the request to codex-resets.com fails, alerts are still off and
+            the popup tells you that the request failed.
+          </p>
+          <p>
+            The extension can only ask. Codex Resets is a separate service, and
+            the extension cannot confirm or guarantee that it deletes the
+            record, or what it keeps in its logs. Its
+            <a href="https://codex-resets.com/privacy">privacy notice</a> says
+            that turning browser notifications off requests removal of its
+            server record, and lists its contact for questions and deletion
+            requests.
+          </p>
+          <p>
+            If you remove the extension while alerts are on, the extension
+            cannot send that request, so codex-resets.com may keep its record.
+            Turn alerts off first.
+          </p>
+          <p>
+            The rest of the local data (the last alert, the last check and the
+            cached status) stays on your device until it is replaced or the
+            extension is removed.
+          </p>
+        </section>
+
+        <section aria-labelledby="notifications">
+          <h2 id="notifications">Notifications and links</h2>
+          <p>
+            Notifications appear only after you turn alerts on: a possible
+            reset, a confirmed reset, or a notice that push missed a reset.
+            Clicking a notification opens its link in a new tab, or
+            codex-resets.com when the link is missing or does not use https.
+            Links in the popup open only when you click them. The sites they
+            open, such as the post that announced a reset, have their own
+            privacy practices.
+          </p>
+        </section>
+
+        <section aria-labelledby="no-other-use">
+          <h2 id="no-other-use">No analytics, no sale, no other use</h2>
+          <p>
+            The extension contains no analytics, tracking or advertising code,
+            and it runs no code from outside its package. The developer does not
+            receive your data, and it is never sold or rented. It goes only to
+            the services described above, and it is used only to deliver the
+            alerts you turned on and to show reset data in the popup. It is
+            never used for advertising, to determine creditworthiness, or for
+            lending.
+          </p>
+        </section>
+
+        <section aria-labelledby="limited-use">
+          <h2 id="limited-use">Limited Use</h2>
+          <p>
+            The use of information received by Reset Alerts for Codex
+            (Unofficial) adheres to the
+            <a
+              href="https://developer.chrome.com/docs/webstore/program-policies"
+              >Chrome Web Store User Data Policy</a
+            >, including the
+            <a
+              href="https://developer.chrome.com/docs/webstore/program-policies/limited-use"
+              >Limited Use</a
+            >
+            requirements. The data is used only for the extension's single
+            purpose, alerts about Codex usage limit resets, and is transferred
+            only as needed for it: to codex-resets.com, which sends the alerts,
+            and through Chrome to its push service, which delivers them.
+          </p>
+        </section>
+
+        <section aria-labelledby="stop">
+          <h2 id="stop">How to stop</h2>
+          <ul>
+            <li>
+              <strong>Turn alerts off:</strong> open the extension's popup from
+              the Chrome toolbar and press the bell button.
+            </li>
+            <li>
+              <strong>Remove the extension:</strong> open
+              <code>chrome://extensions</code> and choose Remove. Turn alerts
+              off first, so the extension can ask codex-resets.com to remove its
+              record.
+            </li>
+          </ul>
+        </section>
+
+        <section aria-labelledby="changes">
+          <h2 id="changes">Changes to this policy</h2>
+          <p>
+            If the extension starts handling data differently, this page will be
+            updated, with a new effective date, before that version is
+            published.
+          </p>
+        </section>
+
+        <section aria-labelledby="contact">
+          <h2 id="contact">Contact</h2>
+          <p>
+            For questions or requests about this policy, open an issue at
+            <a href="https://github.com/camarigor/codex-reset/issues"
+              >github.com/camarigor/codex-reset/issues</a
+            >. Issues are public, so do not include personal data or your push
+            subscription. The source code is public at
+            <a href="https://github.com/camarigor/codex-reset"
+              >github.com/camarigor/codex-reset</a
+            >, so you can check what the extension does.
+          </p>
+        </section>
+      </main>
+
+      <footer class="credit">
+        <p>Unofficial. Not affiliated with OpenAI or Codex Resets.</p>
+      </footer>
+    </div>
+  </body>
+</html>
