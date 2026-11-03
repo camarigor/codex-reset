@@ -2,8 +2,19 @@
 
 import { browser } from "wxt/browser";
 import { defineBackground } from "wxt/utils/define-background";
+import { fetchStatus } from "../src/api/client";
+import { runMissedAlertCheck } from "../src/check/run-check";
+import {
+  CHECK_INTERVAL_MINUTES,
+  NOTIFICATION_TAGS,
+  STARTUP_CHECK_DELAY_MINUTES,
+} from "../src/config";
 import type { BackgroundRequest, BackgroundResponse } from "../src/messages";
-import { showAlert } from "../src/push/notify";
+import {
+  showAlert,
+  showMissedAlert,
+  type MissedResetInfo,
+} from "../src/push/notify";
 import { parsePushPayload, sanitizeUrl } from "../src/push/payload";
 import {
   disableAlerts,
@@ -80,6 +91,61 @@ export default defineBackground({
         }),
       );
     });
+
+    browser.runtime.onInstalled.addListener(ensurePeriodicCheck);
+    browser.runtime.onStartup.addListener(async () => {
+      await ensurePeriodicCheck();
+      await browser.alarms.create("missed-alert-check-startup", {
+        delayInMinutes: STARTUP_CHECK_DELAY_MINUTES,
+      });
+    });
+    browser.alarms.onAlarm.addListener((alarm) => {
+      if (
+        alarm.name !== "missed-alert-check" &&
+        alarm.name !== "missed-alert-check-startup"
+      )
+        return;
+      return enqueue(async () => {
+        let registeredAgain = false;
+        await runMissedAlertCheck({
+          fetchStatus,
+          loadState,
+          updateState,
+          now: () => new Date(),
+          resubscribe: async () => {
+            const result = await resubscribe(worker.registration.pushManager);
+            registeredAgain = result.ok;
+            return result;
+          },
+          showMissedAlert: async (reset) => {
+            const missed: MissedResetInfo = {
+              resetType: reset.reset_type,
+              text: reset.text,
+              url: sanitizeUrl(reset.source.url),
+            };
+            if (registeredAgain) {
+              await showMissedAlert(worker.registration, missed);
+              return;
+            }
+            const resetType =
+              missed.resetType === "regular" ? "Regular" : "Banked";
+            await worker.registration.showNotification("Push alert missed", {
+              body: `Codex Resets reported a ${resetType} reset that push did not deliver. Registering alerts again failed.\n\n${missed.text}`,
+              tag: NOTIFICATION_TAGS.missed,
+              data: { url: missed.url },
+            });
+          },
+        });
+      });
+    });
+
+    async function ensurePeriodicCheck(): Promise<void> {
+      if (!(await browser.alarms.get("missed-alert-check"))) {
+        await browser.alarms.create("missed-alert-check", {
+          periodInMinutes: CHECK_INTERVAL_MINUTES,
+        });
+      }
+    }
 
     browser.runtime.onMessage.addListener(
       (request: unknown, sender, sendResponse) => {
