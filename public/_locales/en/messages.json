@@ -207,6 +207,78 @@
     "message": "Since last reset",
     "description": "Statistic label: days since the most recent reset."
   },
+  "historyHeading": {
+    "message": "Reset history",
+    "description": "Heading of the calendar of past resets in the popup: one column per week, one square per day."
+  },
+  "historyLegendRegular": {
+    "message": "regular",
+    "description": "Legend of the reset history: the color of a day with a regular reset."
+  },
+  "historyLegendBanked": {
+    "message": "banked",
+    "description": "Legend of the reset history: the color of a day with banked resets only."
+  },
+  "historyLegendNone": {
+    "message": "no reset",
+    "description": "Legend of the reset history: the color of a day without resets."
+  },
+  "historyDayLabel": {
+    "message": "$DATE$: $SUMMARY$",
+    "description": "Accessible name of a day in the reset history. SUMMARY is one of the historyDay messages.",
+    "placeholders": {
+      "date": {
+        "content": "$1",
+        "example": "Nov 1, 2026"
+      },
+      "summary": {
+        "content": "$2",
+        "example": "2 banked resets"
+      }
+    }
+  },
+  "historyDayNone": {
+    "message": "No reset",
+    "description": "Tooltip and accessible name of a day in the reset history without resets."
+  },
+  "historyDayRegular": {
+    "message": "Regular reset",
+    "description": "Tooltip and accessible name of a day in the reset history with one regular reset."
+  },
+  "historyDayBanked": {
+    "message": "Banked reset",
+    "description": "Tooltip and accessible name of a day in the reset history with one banked reset."
+  },
+  "historyDayRegularMany": {
+    "message": "$COUNT$ regular resets",
+    "description": "A day in the reset history with several resets, all regular. COUNT is 2 or more.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "2"
+      }
+    }
+  },
+  "historyDayBankedMany": {
+    "message": "$COUNT$ banked resets",
+    "description": "A day in the reset history with several resets, all banked. COUNT is 2 or more.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "2"
+      }
+    }
+  },
+  "historyDayMixed": {
+    "message": "$COUNT$ resets, regular and banked",
+    "description": "A day in the reset history with resets of both types; it shows in the regular color. COUNT is 2 or more.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "2"
+      }
+    }
+  },
   "recentResetsHeading": {
     "message": "Recent resets",
     "description": "Heading of the list of the five most recent resets."
